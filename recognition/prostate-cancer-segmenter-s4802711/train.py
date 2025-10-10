@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from modules import U2Net
 from torch.utils.data import DataLoader
 from dataset import load_data_helper
+from predict import evaluate_model
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -17,50 +18,6 @@ default_num_classes = 6
 def create_model(num_classes=default_num_classes):
     model = U2Net(in_ch=1, out_ch=num_classes).to(device)
     return model
-
-def dice_score(preds, targets, num_classes=default_num_classes, epsilon=1e-6):
-    dice_per_class = []
-    for cls in range(num_classes):
-        pred_cls = (preds == cls).float()
-        target_cls = (targets == cls).float()
-        
-        intersection = (pred_cls * target_cls).sum()
-        union = pred_cls.sum() + target_cls.sum()
-
-        if cls == 0:
-            # Skip background class
-            continue
-
-        if union == 0:
-            # If this class doesn't appear in ground truth or prediction
-            dice_per_class.append(1.0)  # Perfect score for absent class
-        else:
-            dice = (2. * intersection + epsilon) / (union + epsilon)
-            dice_per_class.append(dice)
-
-    if len(dice_per_class) == 0:
-        return 0.0
-
-    return sum(dice_per_class) / (num_classes - 1)  # exclude background
-
-@torch.no_grad()
-def evaluate_model(model: U2Net, data_loader: DataLoader, num_classes=4):
-    model.eval()
-    total_dice = 0.0
-    num_batches = 0
-    
-    for images, masks_one_hot in data_loader:
-        images = images.to(device)
-        mask_indices = torch.argmax(masks_one_hot, dim=1).to(device)
-
-        outputs = model(images)
-        preds = torch.argmax(outputs, dim=1)
-        
-        dice = dice_score(preds, mask_indices, num_classes)
-        total_dice += dice
-        num_batches += 1
-            
-    return total_dice / num_batches if num_batches > 0 else 0.0
 
 def train_model(model: U2Net, train_loader: DataLoader, test_loader: DataLoader, num_epochs=10, num_classes=default_num_classes, goal: int=None):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
