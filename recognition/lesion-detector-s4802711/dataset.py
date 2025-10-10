@@ -29,6 +29,8 @@ def label_data(dir: str, output_dir):
 if __name__ == "__main__":
     base_dir = "recognition/lesion-detector-s4802711/ISIC2018"
     base_dir = os.path.abspath(base_dir)
-    train_dir = os.path.join(base_dir, "ISIC2018_Task1_Training_GroundTruth_x2")
 
-    label_data(train_dir, os.path.join(base_dir, "training_labels"))
+    # training data
+    train_dir = os.path.join(base_dir, "ISIC2018_Task1_Training_GroundTruth_x2")
+    train_dir_output = os.path.join(base_dir, "training_labels")
+    label_data(train_dir, train_dir_output)
