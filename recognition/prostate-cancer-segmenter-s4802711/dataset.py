@@ -6,6 +6,7 @@ import os
 import numpy as np
 import nibabel as nib
 from tqdm import tqdm
+import torch
 
 def get_filenames(dir: str):
     """Get list of NIfTI filenames in a directory."""
@@ -25,6 +26,20 @@ def load_data_helper(base_dir: str, subset: str):
                      getAffines=False, early_stop=False)
 
     return imgs, segs
+
+class SegmentationDataset:
+    def __init__(self, images: np.ndarray, masks: np.ndarray):
+        self.images = np.expand_dims(images, axis=1)  # add channel dim
+        self.masks = np.transpose(masks, (0, 3, 1, 2))  # to NCHW
+
+        self.images = torch.tensor(self.images, dtype=torch.float32)
+        self.masks = torch.tensor(self.masks, dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        return self.images[idx], self.segs[idx]
     
 
 def to_channels(arr: np.ndarray, dtype: np.uint8 = np.uint8) -> np.ndarray:
