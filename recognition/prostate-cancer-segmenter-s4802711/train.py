@@ -48,6 +48,8 @@ def save_model(model: U2Net, path: str):
 if __name__ == "__main__":
     model = create_model()
 
+    print(f"Using device: {device}")
+
     # load data
     base_dir = "recognition/prostate-cancer-segmenter-s4802711/keras_slices_data"
     base_dir = os.path.abspath(base_dir)
