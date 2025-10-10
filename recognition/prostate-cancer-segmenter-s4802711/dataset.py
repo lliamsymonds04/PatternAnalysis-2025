@@ -7,7 +7,8 @@ import numpy as np
 import nibabel as nib
 from tqdm import tqdm
 import torch
-class SegmentationDataset:
+import torch.utils.data import Dataset, DataLoader
+class SegmentationDataset(Dataset):
     def __init__(self, images: np.ndarray, masks: np.ndarray):
         self.images = np.expand_dims(images, axis=1)  # add channel dim
         self.masks = np.transpose(masks, (0, 3, 1, 2))  # to NCHW
@@ -19,7 +20,7 @@ class SegmentationDataset:
         return len(self.images)
 
     def __getitem__(self, idx):
-        return self.images[idx], self.segs[idx]
+        return self.images[idx], self.masks[idx]
  
 def get_filenames(dir: str):
     """Get list of NIfTI filenames in a directory."""
@@ -38,7 +39,9 @@ def load_data_helper(base_dir: str, subset: str):
     segs = load_data_2D(seg_files, normImage=False, categorical=True, dtype=np.uint8,
                      getAffines=False, early_stop=False)
 
-    return SegmentationDataset(imgs, segs)
+    train_dataset = SegmentationDataset(imgs, segs)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+    return train_dataset, train_loader
    
 def to_channels(arr: np.ndarray, dtype: np.uint8 = np.uint8) -> np.ndarray:
     """Convert a 2D label array into one-hot channel format.
