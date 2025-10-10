@@ -16,7 +16,29 @@ def create_model():
     return model
 
 def train_model(model: U2Net, train_loader: SegmentationDataset, num_epochs=10):
-    pass
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    for epoch in range(num_epochs):
+        model.train()
+        total_loss = 0.0
+        for images, masks_one_hot in train_loader:
+            images = images.to(device)
+
+            mask_indices = torch.argmax(masks_one_hot, dim=1).to(device)
+
+            optimizer.zero_grad()
+
+            # Forward pass
+            outputs = model(images)
+
+            loss = F.cross_entropy(outputs, mask_indices)
+
+            # backward pass and optimization
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/len(train_loader):.4f}")
 
 
 if __name__ == "__main__":
