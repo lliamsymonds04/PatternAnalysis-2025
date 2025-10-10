@@ -170,3 +170,4 @@ run-*.pid
 .venvignore
 
 ISIC2018/
+runs/
