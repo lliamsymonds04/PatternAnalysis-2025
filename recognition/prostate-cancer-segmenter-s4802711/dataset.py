@@ -128,5 +128,5 @@ def load_data_2D(imageNames: list[str], normImage=False, categorical=False, dtyp
 if __name__ == "__main__":
     base_dir = "recognition/prostate-cancer-segmenter-s4802711/keras_slices_data"
     base_dir = os.path.abspath(base_dir)
-    train_imgs, train_segs = load_data_helper(base_dir, "train")
-    print(f"Train images shape: {train_imgs.shape}, Train segs shape: {train_segs.shape}")
+    dataset = load_data_helper(base_dir, "train")
+    print(f"Train images shape: {dataset.images.shape}, Train segs shape: {dataset.masks.shape}")
