@@ -10,6 +10,7 @@ from modules import U2Net
 from torch.utils.data import DataLoader
 from dataset import load_data_helper
 from predict import evaluate_model
+from helper import get_base_path
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -60,9 +61,8 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # load data
-    root_dir = "recognition/prostate-cancer-segmenter-s4802711"
+    root_dir = get_base_path()
     base_dir = os.path.join(root_dir, "keras_slices_data")
-    base_dir = os.path.abspath(base_dir)
     total_classes = 6  # Fixed based on prior analysis  
     train_dataset, train_loader = load_data_helper(base_dir, "train", total_classes)
     test_dataset, test_loader = load_data_helper(base_dir, "test", total_classes)

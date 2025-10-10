@@ -4,6 +4,7 @@ from tqdm import tqdm
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
+from helper import get_base_path
 
 # --- Utility Functions ---
 
@@ -189,8 +190,7 @@ def load_data_helper(base_dir: str, subset: str, total_classes: int):
 
 if __name__ == "__main__":
     # Example usage for testing purposes
-    root_dir = "recognition/prostate-cancer-segmenter-s4802711"
-    root_dir = os.path.abspath(root_dir)
+    root_dir = get_base_path()
     base_dir = os.path.join(root_dir, "keras_slices_data")
     
     subset = "train"

@@ -8,11 +8,10 @@ from modules import U2Net
 import nibabel as nib
 from dataset import load_data_helper
 from torch.utils.data import DataLoader
+from helper import get_base_path
 
 model_name = "u2net_prostate_seg.pth"
-# get the absolute path
-model_folder = "recognition/prostate-cancer-segmenter-s4802711"
-model_path = os.path.abspath(model_folder + "/" + model_name)
+model_path = os.path.join(get_base_path(), model_name)
 
 # Load the model
 model = U2Net(in_ch=1, out_ch=6)
