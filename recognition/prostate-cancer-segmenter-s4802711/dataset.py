@@ -12,6 +12,21 @@ def get_filenames(dir: str):
     files = [os.path.join(dir, f) for f in os.listdir(dir) if f.endswith('.nii') or f.endswith('.nii.gz')]
     return files
 
+def load_data_helper(base_dir: str, subset: str):
+    imgs_dir = os.path.join(base_dir, f"keras_slices_{subset}")
+    segs_dir = os.path.join(base_dir, f"keras_slices_seg_{subset}")
+
+    img_files = get_filenames(imgs_dir)
+    seg_files = get_filenames(segs_dir)
+    
+    imgs = load_data_2D(img_files, normImage=True, categorical=False, dtype=np.float32,
+                     getAffines=False, early_stop=False)
+    segs = load_data_2D(seg_files, normImage=False, categorical=True, dtype=np.uint8,
+                     getAffines=False, early_stop=False)
+
+    return imgs, segs
+    
+
 def to_channels(arr: np.ndarray, dtype: np.uint8 = np.uint8) -> np.ndarray:
     """Convert a 2D label array into one-hot channel format.
 
@@ -25,7 +40,7 @@ def to_channels(arr: np.ndarray, dtype: np.uint8 = np.uint8) -> np.ndarray:
 
     return res
 
-def load_data_2D(imageNames, normImage=False, categorical=False, dtype=np.float32,
+def load_data_2D(imageNames: list[str], normImage=False, categorical=False, dtype=np.float32,
                     getAffines=False, early_stop=False):
     """
     Load medical image data from a list of filenames.
