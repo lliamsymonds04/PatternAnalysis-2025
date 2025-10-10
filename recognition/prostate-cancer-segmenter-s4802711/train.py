@@ -7,7 +7,8 @@ import torch.optim as optim
 import torch
 import torch.nn.functional as F
 from modules import U2Net
-from dataset import SegmentationDataset, load_data_helper
+from dataset import load_data_helper
+from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -15,7 +16,7 @@ def create_model():
     model = U2Net(in_ch=1, out_ch=4).to(device)
     return model
 
-def train_model(model: U2Net, train_loader: SegmentationDataset, num_epochs=10):
+def train_model(model: U2Net, train_loader: DataLoader, num_epochs=10):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     for epoch in range(num_epochs):
         model.train()
@@ -50,8 +51,9 @@ if __name__ == "__main__":
     # load data
     base_dir = "recognition/prostate-cancer-segmenter-s4802711/keras_slices_data"
     base_dir = os.path.abspath(base_dir)
-    dataset = load_data_helper(base_dir, "train")
+    prostate_dataset, loader = load_data_helper(base_dir, "train")
+    print(f"Images shape: {prostate_dataset.images.shape}, Masks shape: {prostate_dataset.masks.shape}")
     
 
-    train_model(model, dataset, num_epochs=50)
+    train_model(model, loader, num_epochs=50)
     save_model(model, "u2net_prostate_seg.pth")

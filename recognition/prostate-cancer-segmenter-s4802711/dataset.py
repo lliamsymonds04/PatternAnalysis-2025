@@ -7,7 +7,8 @@ import numpy as np
 import nibabel as nib
 from tqdm import tqdm
 import torch
-import torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
+
 class SegmentationDataset(Dataset):
     def __init__(self, images: np.ndarray, masks: np.ndarray):
         self.images = np.expand_dims(images, axis=1)  # add channel dim
