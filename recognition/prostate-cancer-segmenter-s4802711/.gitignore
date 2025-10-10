@@ -168,5 +168,4 @@ run-*.pid
 .envrc
 .venvignore
 
-# End of .gitignore
-
+keras_slices_data/
