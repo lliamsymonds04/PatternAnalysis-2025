@@ -6,7 +6,6 @@ import cv2
 def label_data(dir: str, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
-    mask = cv2.imread()
     for mask_name in os.listdir(dir):
         if not mask_name.endswith(".png"):
             continue
@@ -18,10 +17,17 @@ def label_data(dir: str, output_dir):
         h,w = mask.shape
 
 
-        with open(os.path.join(output_dir, mask_name.replace(".png", ".txt")), 'wb') as f:
+        with open(os.path.join(output_dir, mask_name.replace(".png", ".txt")), 'w') as f:
             for cnt in contours:
                 x,y,bw,bh = cv2.boundingRect(cnt)
                 cx = x + bw/2
                 cy = y + bh/2
                 f.write(f"0 {cx/w} {cy/h} {w/w} {h/h}\n")
 
+
+if __name__ == "__main__":
+    base_dir = "recognition/lesion-detector-s4802711/ISIC2018"
+    base_dir = os.path.abspath(base_dir)
+    train_dir = os.path.join(base_dir, "ISIC2018_Task1_Training_GroundTruth_x2")
+
+    label_data(train_dir, os.path.join(base_dir, "training_labels"))
