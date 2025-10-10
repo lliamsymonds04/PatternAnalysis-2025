@@ -1,12 +1,13 @@
 import os
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 
 def label_data(dir: str, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
-    for mask_name in os.listdir(dir):
+    for mask_name in tqdm(os.listdir(dir)):
         if not mask_name.endswith(".png"):
             continue
 
