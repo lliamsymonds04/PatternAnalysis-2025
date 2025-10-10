@@ -40,6 +40,9 @@ def train_model(model: U2Net, train_loader: SegmentationDataset, num_epochs=10):
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/len(train_loader):.4f}")
 
+def save_model(model: U2Net, path: str):
+    torch.save(model.state_dict(), path)
+
 
 if __name__ == "__main__":
     model = create_model()
@@ -51,3 +54,4 @@ if __name__ == "__main__":
     
 
     train_model(model, dataset, num_epochs=50)
+    save_model(model, "u2net_prostate_seg.pth")

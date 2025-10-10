@@ -7,9 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class RSU(nn.Module):
-    def __init__(self, in_ch: int, out_ch: int, mid_ch: int, depth: int = 7):
+    def __init__(self, in_ch: int, out_ch: int, mid_ch: int, L: int = 7):
         super(RSU, self).__init__()
-        self.depth = depth
+        self.L = L
 
         self.rebnconvin = self._make_conv_block(in_ch, out_ch)
 
@@ -17,14 +17,14 @@ class RSU(nn.Module):
         self.rebnconv1 = self._make_conv_block(out_ch, mid_ch)
         self.pool = nn.MaxPool2d(2, stride=2, ceil_mode=True)
         self.rebconvs = nn.ModuleList()
-        for i in range(2, depth):
+        for i in range(2, L):
             self.rebconvs.append(self._make_conv_block(mid_ch, mid_ch))
 
         self.rebconvm = self._make_conv_block(mid_ch, mid_ch)
 
         # decoder stages
         self.rebconvd = nn.ModuleList()
-        for i in range(2, depth):
+        for i in range(2, L):
             self.rebconvd.append(self._make_conv_block(mid_ch * 2, mid_ch))
 
         self.rebnconvout = self._make_conv_block(mid_ch * 2, out_ch)
