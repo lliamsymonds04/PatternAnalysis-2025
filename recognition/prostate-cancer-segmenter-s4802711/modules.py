@@ -2,6 +2,7 @@
 Components for the 2D U-Net architecture.
 """
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -36,4 +37,31 @@ class RSU(nn.Module):
         )
 
     def forward(self, x):
-        return x
+        x_in = self.rebnconvin(x)
+        
+        # Encoder
+        x = x_in
+        conv_outs = [x]
+        for i in range(1, self.L - 1):
+            x = self.pool(x)
+            x = self.rebnconvs[i-1](x)
+            conv_outs.append(x)
+        
+        # Bottleneck
+        x = self.pool(x)
+        x = self.rebnconvm(x)
+        
+        # Decoder
+        for i in range(self.L - 2):
+            idx = self.L - 2 - i
+            x = F.interpolate(x, size=conv_outs[idx].size()[2:], mode='bilinear', align_corners=True)
+            x = torch.cat((x, conv_outs[idx]), dim=1)
+            x = self.rebnconvd[i](x)
+
+        # Skip and Output
+        x = F.interpolate(x, size=x_in.size()[2:], mode='bilinear', align_corners=True)
+        x = torch.cat((x, x_in), dim=1)
+        x = self.rebnconvout(x)
+        
+        # Residual connection
+        return x + x_in
