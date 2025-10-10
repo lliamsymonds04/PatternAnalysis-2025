@@ -7,8 +7,8 @@ import torch.optim as optim
 import torch
 import torch.nn.functional as F
 from modules import U2Net
-from dataset import load_data_helper
 from torch.utils.data import DataLoader
+from dataset import load_data_helper
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -65,7 +65,6 @@ def evaluate_model(model: U2Net, data_loader: DataLoader, num_classes=4):
 def train_model(model: U2Net, train_loader: DataLoader, test_loader: DataLoader, num_epochs=10, num_classes=default_num_classes, goal: int=None):
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0], device=device)
 
     for epoch in range(num_epochs):
         model.train()
@@ -80,7 +79,7 @@ def train_model(model: U2Net, train_loader: DataLoader, test_loader: DataLoader,
             # Forward pass
             outputs = model(images)
 
-            loss = F.cross_entropy(outputs, mask_indices, weight=class_weights)
+            loss = F.cross_entropy(outputs, mask_indices)
 
             # backward pass and optimization
             loss.backward()
@@ -92,7 +91,7 @@ def train_model(model: U2Net, train_loader: DataLoader, test_loader: DataLoader,
         test_dice = evaluate_model(model, test_loader, num_classes)
         print(f"    test_dice: {test_dice:.4f}")
 
-        if goal is not None and test_dice >= goal:
+        if goal is not None and test_dice >= goal and epoch > 2:
             print(f"Goal reached: test_dice {test_dice:.4f} >= {goal}")
             break
 
@@ -105,16 +104,15 @@ if __name__ == "__main__":
 
     # load data
     root_dir = "recognition/prostate-cancer-segmenter-s4802711"
-    base_dir = f"{root_dir}/keras_slices_data"
+    base_dir = os.path.join(root_dir, "keras_slices_data")
     base_dir = os.path.abspath(base_dir)
-    train_dataset, train_loader = load_data_helper(base_dir, "train")
-    test_dataset, test_loader = load_data_helper(base_dir, "test")
-    print(f"Images shape: {train_dataset.images.shape}, Masks shape: {train_dataset.masks.shape}")
-    print(f"Test Images shape: {test_dataset.images.shape}, Test Masks shape: {test_dataset.masks.shape}")
-    
-    num_classes = train_dataset.masks.shape[1]
-    model = create_model(num_classes=num_classes)
+    total_classes = 6  # Fixed based on prior analysis  
+    train_dataset, train_loader = load_data_helper(base_dir, "train", total_classes)
+    test_dataset, test_loader = load_data_helper(base_dir, "test", total_classes)
 
-    train_model(model, train_loader, test_loader, num_epochs=10, num_classes=num_classes)
+    model = create_model(num_classes=total_classes)
+
+    print("=> Starting training...")
+    train_model(model, train_loader, test_loader, num_epochs=10, num_classes=total_classes, goal=0.75)
 
     save_model(model, f"{root_dir}/u2net_prostate_seg.pth")
