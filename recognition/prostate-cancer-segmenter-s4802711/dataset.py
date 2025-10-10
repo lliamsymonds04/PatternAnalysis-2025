@@ -7,6 +7,10 @@ import numpy as np
 import nibabel as nib
 from tqdm import tqdm
 
+def get_filenames(dir: str):
+    """Get list of NIfTI filenames in a directory."""
+    files = [os.path.join(dir, f) for f in os.listdir(dir) if f.endswith('.nii') or f.endswith('.nii.gz')]
+    return files
 
 def to_channels(arr: np.ndarray, dtype: np.uint8 = np.uint8) -> np.ndarray:
     """Convert a 2D label array into one-hot channel format.
