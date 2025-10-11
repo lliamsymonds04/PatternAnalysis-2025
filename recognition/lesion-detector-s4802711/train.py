@@ -3,6 +3,10 @@ import os
 import multiprocessing
 from helper import get_imgsz, get_project_name
 
+model_name = "yolov8n.pt"  # nano
+# model_name = "yolov8s.pt"  # small model
+# model_name = "yolov8x.pt"  # better model but takes forever
+
 
 def main():
 	# any downloaded model files and default 'runs' folder are created here
@@ -10,8 +14,7 @@ def main():
 	base_dir = script_dir
 	os.chdir(base_dir)
 
-	# Load a model (instantiate after chdir so any downloads end up in base_dir)
-	model = YOLO("yolov8n.pt")  # for detection
+	model = YOLO(model_name)
 
 	# Ensure YOLO writes runs/checkpoints inside the model folder instead of repo root
 	output_dir = os.path.join(base_dir, "runs")

@@ -27,7 +27,7 @@ def label_data(dir: str, output_dir):
                 x,y,bw,bh = cv2.boundingRect(cnt)
                 cx = x + bw/2
                 cy = y + bh/2
-                f.write(f"0 {cx/w} {cy/h} {w/w} {h/h}\n")
+                f.write(f"0 {cx/w} {cy/h} {bw/w} {bh/h}\n")
 
 def prepare_dataset(output_dir: str, label_dir: str, images_dir:str, seed: int = 42):
     random.seed(seed)
