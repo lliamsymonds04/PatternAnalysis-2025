@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import os
 import multiprocessing
-from helper import get_imgsz
+from helper import get_imgsz, get_project_name
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
 	os.makedirs(output_dir, exist_ok=True)
 
 	model.train(data=os.path.join(base_dir, "data.yaml"), epochs=50, imgsz=get_imgsz(),
-				batch=16, name="lesion-detector", project=output_dir, exist_ok=True)
+				batch=16, name=get_project_name(), project=output_dir, exist_ok=True)
 
 
 if __name__ == "__main__":

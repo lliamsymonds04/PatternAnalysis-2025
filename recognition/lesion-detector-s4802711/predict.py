@@ -5,14 +5,14 @@ import torch
 from torchvision.ops import box_iou
 from ultralytics import YOLO
 from PIL import Image
-from helper import get_imgsz
+from helper import get_imgsz, get_project_name
 
 base = Path(__file__).parent
 data_yaml = base / "data.yaml"
 val_images = base / "ISIC2018/dataset/images/val"
 val_labels = base / "ISIC2018/dataset/labels/val"
 runs_dir = base / "runs"
-project_name = "lesion-detector"  # same name used during training
+project_name = get_project_name()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 imgsz = get_imgsz()
 conf = 0.001
