@@ -1,6 +1,7 @@
 from ultralytics import YOLO
 import os
 import multiprocessing
+from helper import get_imgsz
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
 	output_dir = os.path.join(base_dir, "runs")
 	os.makedirs(output_dir, exist_ok=True)
 
-	model.train(data=os.path.join(base_dir, "data.yaml"), epochs=50, imgsz=480,
+	model.train(data=os.path.join(base_dir, "data.yaml"), epochs=50, imgsz=get_imgsz(),
 				batch=16, name="lesion-detector", project=output_dir, exist_ok=True)
 
 
