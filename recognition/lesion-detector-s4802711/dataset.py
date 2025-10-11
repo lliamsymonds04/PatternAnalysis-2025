@@ -2,8 +2,10 @@ import os
 import shutil
 import numpy as np
 import cv2
+import yaml
 from tqdm import tqdm
 import random
+from pathlib import Path
 
 
 def label_data(dir: str, output_dir):
@@ -59,18 +61,32 @@ def prepare_dataset(output_dir: str, label_dir: str, images_dir:str, seed: int =
             src_img = os.path.join(images_dir, file_name)
             dst_img = os.path.join(dataset_dir, "images", split, file_name)
             shutil.copy2(src_img, dst_img)
-            print(f"Copying {src_img} -> {dst_img}")
 
             # Label (same name, .txt)
-            label_name = file_name.replace(".jpg", ".txt")
+            label_name = file_name.replace(".png", ".txt")
             src_label = os.path.join(label_dir, label_name)
             dst_label = os.path.join(dataset_dir, "labels", split, label_name)
             if os.path.exists(src_label):
                 shutil.copy2(src_label, dst_label)
 
     print("Dataset preparation complete.")
+
+def make_yolo_path(p: Path) -> str:
+    return str(p.as_posix())
     
-    
+def create_yaml():
+    Root = Path(__file__).parent.resolve()
+    yaml_content = { 
+        "train": make_yolo_path(Root / "ISIC2018" / 'dataset' / 'images' / 'train'),
+        "val": make_yolo_path(Root / "ISIC2018" / 'dataset' / 'images' / 'val'),
+        "test": make_yolo_path(Root / "ISIC2018" / 'dataset' / 'images' / 'test'),
+        "nc": 1,
+        "names": ['lesion']
+    }
+
+    yaml_path = Root / "data.yaml"
+    with open(yaml_path, 'w') as f:
+        yaml.dump(yaml_content, f)
 
 if __name__ == "__main__":
     base_dir = "recognition/lesion-detector-s4802711/ISIC2018"
@@ -82,3 +98,6 @@ if __name__ == "__main__":
     label_data(train_dir, train_dir_output)
 
     prepare_dataset(base_dir, train_dir_output, train_dir)
+
+    # create data.yaml for YOLOv8
+    create_yaml()

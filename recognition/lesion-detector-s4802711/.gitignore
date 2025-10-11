@@ -171,3 +171,5 @@ run-*.pid
 
 ISIC2018/
 runs/
+
+data.yaml

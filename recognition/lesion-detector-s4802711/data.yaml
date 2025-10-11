@@ -1,6 +1,0 @@
-path: recognition/lesion-detector-s4802711
-train: ../ISIC2018/dataset/images/train
-test: ../ISIC2018/dataset/images/train
-val: ../ISIC2018/dataset/images/val
-nc: 1
-names: ['lesion']
