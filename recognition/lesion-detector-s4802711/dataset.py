@@ -34,7 +34,7 @@ def label_data(dir: str, output_dir):
                 cy = y + bh/2
                 f.write(f"0 {cx/w} {cy/h} {bw/w} {bh/h}\n")
 
-def prepare_dataset(output_dir: str, label_dir: str, images_dir:str, seed: int = 42):
+def prepare_dataset(output_dir: str, label_dir: str, train_dir: str, test_dir: str, seed: int = 42):
     random.seed(seed)
 
     dataset_dir = os.path.join(output_dir, "dataset")
@@ -46,30 +46,34 @@ def prepare_dataset(output_dir: str, label_dir: str, images_dir:str, seed: int =
         os.makedirs(os.path.join(dataset_dir, "labels", split), exist_ok=True)
 
     # get all image files
-    image_files = [f for f in os.listdir(images_dir) if f.endswith(".jpg") or f.endswith(".png")]
-    random.shuffle(image_files)
-    print(f"Total images found: {len(image_files)}")
+    train_files = [f for f in os.listdir(train_dir) if f.endswith(".jpg") or f.endswith(".png")]
+    random.shuffle(train_files)
+    print(f"Total training images found: {len(train_files)}")
 
-    n = len(image_files)
-    n_train = int(0.7 * n)
+    test_files = [f for f in os.listdir(test_dir) if f.endswith(".jpg") or f.endswith(".png")]
+    print(f"Total test images found: {len(test_files)}")
+
+    n = len(train_files)
+    n_train = int(0.8 * n)
     n_val = int(0.15 * n)
 
     splits = {
-        "train": image_files[:n_train],
-        "val": image_files[n_train:n_train+n_val],
-        "test": image_files[n_train+n_val:]
+        "train": train_files[:n_train],
+        "val": train_files[n_train:n_train+n_val],
+        "test": test_files
     }
 
     for split, file_list in splits.items():
         for file_name in file_list:
             # Image
+            images_dir = train_dir if split in ["train", "val"] else test_dir
+
             src_img = os.path.join(images_dir, file_name)
             dst_img = os.path.join(dataset_dir, "images", split, file_name)
             shutil.copy2(src_img, dst_img)
 
             # Label (same name, .txt)
-            file_name = drop_segmentation_str(file_name)
-            label_name = file_name.replace(".png", ".txt")
+            label_name = file_name[:-4] + ".txt"
             src_label = os.path.join(label_dir, label_name)
             dst_label = os.path.join(dataset_dir, "labels", split, label_name)
             if os.path.exists(src_label):
@@ -104,9 +108,9 @@ if __name__ == "__main__":
     label_data(ground_truth_dir, labels_output)
 
     training_images_dir = os.path.join(base_dir, "ISIC2018_Task1-2_Training_Input_x2")
-    test_images_dir = os.path.join(base_dir, "ISIC2018_Task1_Test_Input")
+    test_images_dir = os.path.join(base_dir, "ISIC2018_Task1-2_Test_Input")
 
-    prepare_dataset(base_dir, labels_output, training_images_dir)
+    prepare_dataset(base_dir, labels_output, training_images_dir, test_images_dir)
 
     # create data.yaml for YOLOv8
     create_yaml()
