@@ -7,6 +7,10 @@ from tqdm import tqdm
 import random
 from pathlib import Path
 
+def drop_segmentation_str(str: str) -> str:
+    if str.endswith("_segmentation.png"):
+        return str[:-17] + ".png"
+    return str
 
 def label_data(dir: str, output_dir):
     os.makedirs(output_dir, exist_ok=True)
@@ -22,6 +26,7 @@ def label_data(dir: str, output_dir):
         h,w = mask.shape
 
 
+        mask_name = drop_segmentation_str(mask_name)
         with open(os.path.join(output_dir, mask_name.replace(".png", ".txt")), 'w') as f:
             for cnt in contours:
                 x,y,bw,bh = cv2.boundingRect(cnt)
@@ -63,6 +68,7 @@ def prepare_dataset(output_dir: str, label_dir: str, images_dir:str, seed: int =
             shutil.copy2(src_img, dst_img)
 
             # Label (same name, .txt)
+            file_name = drop_segmentation_str(file_name)
             label_name = file_name.replace(".png", ".txt")
             src_label = os.path.join(label_dir, label_name)
             dst_label = os.path.join(dataset_dir, "labels", split, label_name)
@@ -93,11 +99,14 @@ if __name__ == "__main__":
     base_dir = os.path.abspath(base_dir)
 
     # training data
-    train_dir = os.path.join(base_dir, "ISIC2018_Task1_Training_GroundTruth_x2")
-    train_dir_output = os.path.join(base_dir, "training_labels")
-    label_data(train_dir, train_dir_output)
+    ground_truth_dir = os.path.join(base_dir, "ISIC2018_Task1_Training_GroundTruth_x2")
+    labels_output = os.path.join(base_dir, "labels_output")
+    label_data(ground_truth_dir, labels_output)
 
-    prepare_dataset(base_dir, train_dir_output, train_dir)
+    training_images_dir = os.path.join(base_dir, "ISIC2018_Task1-2_Training_Input_x2")
+    test_images_dir = os.path.join(base_dir, "ISIC2018_Task1_Test_Input")
+
+    prepare_dataset(base_dir, labels_output, training_images_dir)
 
     # create data.yaml for YOLOv8
     create_yaml()
