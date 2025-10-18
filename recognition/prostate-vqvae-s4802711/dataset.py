@@ -116,14 +116,6 @@ class NiftiSegmentationDataset(Dataset):
 
         return inImage
 
-    # def __getitem__(self, idx):
-    #     image_nifti = nib.load(self.image_fnames[idx])
-    #     image_data = image_nifti.get_fdata(caching='unchanged')
-    #     image_tensor = self._preprocess(image_data, is_mask=False)
-
-    #     image_tensor = torch.from_numpy(image_tensor)
-
-    #     return image_tensor
     def __getitem__(self, idx):
         img = nib.load(self.image_fnames[idx]).get_fdata(caching='unchanged')
         if len(img.shape) == 3:
