@@ -41,18 +41,42 @@ class VectorQuantizer:
 class Encoder:
     def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
         super().__init__()
-        pass
+        self.net = nn.Sequential(
+            nn.Conv2d(
+                in_channels, hidden_channels, kernel_size=4, stride=2, padding=1
+            ),  # 128
+            nn.ReLU(),
+            nn.Conv2d(
+                hidden_channels, hidden_channels, kernel_size=4, stride=2, padding=1
+            ),  # 64
+            nn.ReLU(),
+            nn.Conv2d(
+                hidden_channels, latent_dim, kernel_size=4, stride=2, padding=1
+            ),  # 32
+        )
 
     def forward(self, x):
-        pass
+        return self.net(x)
 
 
 class Decoder:
     def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
-        pass
+        self.net = nn.Sequential(
+            nn.ConvTranspose2d(
+                latent_dim, hidden_channels, kernel_size=4, stride=2, padding=1
+            ),  # 32
+            nn.ReLU(),
+            nn.ConvTranspose2d(
+                hidden_channels, hidden_channels, kernel_size=4, stride=2, padding=1
+            ),  # 64
+            nn.ReLU(),
+            nn.ConvTranspose2d(
+                hidden_channels, in_channels, kernel_size=4, stride=2, padding=1
+            ),  # 128
+        )
 
     def forward(self, z):
-        pass
+        return self.net(z)
 
 
 class VQVAE(nn.Module):
