@@ -95,4 +95,9 @@ class VQVAE(nn.Module):
         self.quantizer = VectorQuantizer(num_embeddings, latent_dim, commitment_cost)
 
     def forward(self, x):
-        pass
+        z_e = self.encoder.forward(x)
+        z_q, vq_loss = self.quantizer.forward(z_e)
+        x_recon = self.decoder.forward(z_q)
+        recon_loss = F.mse_loss(x_recon, x)
+        total_loss = recon_loss + vq_loss
+        return x_recon, total_loss, recon_loss, vq_loss
