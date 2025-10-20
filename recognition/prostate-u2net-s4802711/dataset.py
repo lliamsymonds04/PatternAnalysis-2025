@@ -8,6 +8,7 @@ from helper import get_base_path
 
 # --- Utility Functions ---
 
+
 def get_filenames(directory: str) -> list:
     """Get sorted list of NIfTI files in a directory."""
     files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.nii') or f.endswith('.nii.gz')]
@@ -97,14 +98,32 @@ class NiftiSegmentationDataset(Dataset):
         pad_W = max(0, target_W - W)
         
         # Calculate padding amounts to center the image
+    def __len__(self):
+        return len(self.image_fnames)
+
+    def _pad_or_crop(self, image: np.ndarray, target_shape: tuple) -> np.ndarray:
+        """Pads or center-crops the 2D image/mask to the target shape (H, W)."""
+        H, W = image.shape
+        target_H, target_W = target_shape
+
+        # 1. Padding (if smaller than target)
+        pad_H = max(0, target_H - H)
+        pad_W = max(0, target_W - W)
+
+        # Calculate padding amounts to center the image
         pad_top = pad_H // 2
         pad_bottom = pad_H - pad_top
         pad_left = pad_W // 2
         pad_right = pad_W - pad_left
-        
+
         if pad_H > 0 or pad_W > 0:
-            image = np.pad(image, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant', constant_values=0)
-            H, W = image.shape # Update H, W after padding
+            image = np.pad(
+                image,
+                ((pad_top, pad_bottom), (pad_left, pad_right)),
+                mode="constant",
+                constant_values=0,
+            )
+            H, W = image.shape  # Update H, W after padding
 
         # 2. Cropping (if larger than target)
         crop_H = max(0, H - target_H)
@@ -115,13 +134,15 @@ class NiftiSegmentationDataset(Dataset):
         crop_bottom = H - (crop_H - crop_top)
         crop_left = crop_W // 2
         crop_right = W - (crop_W - crop_left)
-        
+
         if crop_H > 0 or crop_W > 0:
             image = image[crop_top:crop_bottom, crop_left:crop_right]
-        
+
         # Ensure final shape is correct
         if image.shape != target_shape:
-            raise ValueError(f"Reshaping failed. Got {image.shape}, expected {target_shape}")
+            raise ValueError(
+                f"Reshaping failed. Got {image.shape}, expected {target_shape}"
+            )
 
         return image
 
@@ -133,7 +154,7 @@ class NiftiSegmentationDataset(Dataset):
 
         inImage = inImage.astype(self.dtype)
 
-        TARGET_H, TARGET_W = 256, 256 # Define a safe target size
+        TARGET_H, TARGET_W = 256, 256  # Define a safe target size
         inImage = self._pad_or_crop(inImage, (TARGET_H, TARGET_W))
 
         if not is_mask and self.norm_image:
@@ -143,11 +164,13 @@ class NiftiSegmentationDataset(Dataset):
                 inImage = inImage - inImage.mean()
 
         if is_mask and self.categorical_mask:
-            inImage = to_channels(inImage, total_classes=self.total_classes, dtype=self.dtype)
-        
+            inImage = to_channels(
+                inImage, total_classes=self.total_classes, dtype=self.dtype
+            )
+
         if not is_mask and len(inImage.shape) == 2:
             inImage = np.expand_dims(inImage, axis=-1)
-        
+
         # Transpose to (C, H, W) for PyTorch
         if len(inImage.shape) == 3:
             inImage = np.transpose(inImage, (2, 0, 1))
@@ -156,51 +179,29 @@ class NiftiSegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         image_nifti = nib.load(self.image_fnames[idx])
-        image_data = image_nifti.get_fdata(caching='unchanged')
+        image_data = image_nifti.get_fdata(caching="unchanged")
         image_tensor = self._preprocess(image_data, is_mask=False)
 
         mask_nifti = nib.load(self.mask_fnames[idx])
-        mask_data = mask_nifti.get_fdata(caching='unchanged')
+        mask_data = mask_nifti.get_fdata(caching="unchanged")
         mask_tensor = self._preprocess(mask_data, is_mask=True)
 
         image_tensor = torch.from_numpy(image_tensor)
         mask_tensor = torch.from_numpy(mask_tensor)
 
         return image_tensor, mask_tensor
-        
+
+
 def load_data_helper(base_dir: str, subset: str, total_classes: int):
     img_dir = os.path.join(base_dir, f"keras_slices_{subset}")
     seg_dir = os.path.join(base_dir, f"keras_slices_seg_{subset}")
 
     img_files = get_filenames(img_dir)
     seg_files = get_filenames(seg_dir)
-    
-    dataset = NiftiSegmentationDataset(
-        img_files, 
-        seg_files, 
-        total_classes=total_classes,
-        norm_image=True, 
-        categorical_mask=True, 
-        dtype=np.float32
-    )
-    
-    loader = DataLoader(dataset, batch_size=8, shuffle=True)
-    
-    return dataset, loader
 
-if __name__ == "__main__":
-    # Example usage for testing purposes
-    root_dir = get_base_path()
-    base_dir = os.path.join(root_dir, "keras_slices_data")
-    
-    subset = "train"
-    img_dir = os.path.join(base_dir, f"keras_slices_{subset}")
-    seg_dir = os.path.join(base_dir, f"keras_slices_seg_{subset}")
-    
-    img_files = get_filenames(img_dir)
-    seg_files = get_filenames(seg_dir)
-    
-    #  Manual Class Determination for Test
+    dataset = NiftiSegmentationDataset(
+        img_files,
+        seg_files,
     total_classes = get_total_classes(seg_files)
     
     test_dataset = NiftiSegmentationDataset(
