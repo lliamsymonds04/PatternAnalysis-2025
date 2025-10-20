@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class VectorQuantizer:
+class VectorQuantizer(nn.Module):
     def __init__(self, num_embeddings: int, embedding_dim: int, commitment_cost: float):
+        super().__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         self.commitment_cost = commitment_cost
@@ -14,6 +15,8 @@ class VectorQuantizer:
 
     def forward(self, z_e):
         # flatten input
+        device = z_e.device
+        embeddings = self.embeddings.weight.to(device)
         z_e_flattened = (
             z_e.permute(0, 2, 3, 1).contiguous().view(-1, self.embedding_dim)
         )
@@ -21,8 +24,8 @@ class VectorQuantizer:
         # compute the distances between the outputs and the embedding vectors
         distances = (
             torch.sum(z_e_flattened**2, dim=1, keepdim=True)
-            + torch.sum(self.embeddings.weight**2, dim=1)
-            - 2 * torch.matmul(z_e_flattened, self.embeddings.weight.t())
+            + torch.sum(embeddings, dim=1)
+            - 2 * torch.matmul(z_e_flattened, embeddings.t())
         )
 
         encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
@@ -38,7 +41,7 @@ class VectorQuantizer:
         return quantized, loss
 
 
-class Encoder:
+class Encoder(nn.Module):
     def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
         super().__init__()
         self.net = nn.Sequential(
@@ -59,8 +62,9 @@ class Encoder:
         return self.net(x)
 
 
-class Decoder:
+class Decoder(nn.Module):
     def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
+        super().__init__()
         self.net = nn.Sequential(
             nn.ConvTranspose2d(
                 latent_dim, hidden_channels, kernel_size=4, stride=2, padding=1
@@ -88,7 +92,7 @@ class VQVAE(nn.Module):
         num_embeddings: int,
         commitment_cost: float,
     ):
-        super(VQVAE, self).__init__()
+        super().__init__()
 
         self.encoder = Encoder(in_channels, hidden_channels, latent_dim)
         self.decoder = Decoder(latent_dim, hidden_channels, in_channels)
@@ -100,4 +104,5 @@ class VQVAE(nn.Module):
         x_recon = self.decoder.forward(z_q)
         recon_loss = F.mse_loss(x_recon, x)
         total_loss = recon_loss + vq_loss
+
         return x_recon, total_loss, recon_loss, vq_loss
