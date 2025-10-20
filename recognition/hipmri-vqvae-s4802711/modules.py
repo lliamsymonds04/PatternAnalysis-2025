@@ -13,7 +13,29 @@ class VectorQuantizer:
         self.embeddings.weight.data.uniform_(-1 / num_embeddings, 1 / num_embeddings)
 
     def forward(self, z_e):
-        pass
+        # flatten input
+        z_e_flattened = (
+            z_e.permute(0, 2, 3, 1).contiguous().view(-1, self.embedding_dim)
+        )
+
+        # compute the distances between the outputs and the embedding vectors
+        distances = (
+            torch.sum(z_e_flattened**2, dim=1, keepdim=True)
+            + torch.sum(self.embeddings.weight**2, dim=1)
+            - 2 * torch.matmul(z_e_flattened, self.embeddings.weight.t())
+        )
+
+        encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        quantized = self.embeddings(encoding_indices).view(z_e.shape)
+
+        # loss terms
+        e_latent_loss = F.mse_loss(quantized.detach(), z_e)
+        q_latent_loss = F.mse_loss(quantized, z_e.detach())
+        loss = q_latent_loss + self.commitment_cost * e_latent_loss
+
+        quantized = z_e + (quantized - z_e).detach()  # Straight-through estimator
+
+        return quantized, loss
 
 
 class Encoder:
