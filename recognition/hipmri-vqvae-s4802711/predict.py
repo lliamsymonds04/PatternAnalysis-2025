@@ -4,6 +4,7 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 from modules import VQVAE
 from dataset import load_data_helper
 import pathlib
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -48,9 +49,38 @@ def calculate_ssim(model: VQVAE, test_loader):
     return average_ssim
 
 
+def plot_reconstructions(model: VQVAE, test_loader):
+    imgs = next(iter(test_loader))
+    imgs = imgs.to(device).float()
+    with torch.no_grad():
+        recons, _, _, _ = model.forward(imgs)
+
+    recons = torch.clamp(recons, -1, 1)
+
+    imgs = imgs.cpu().numpy()
+    recons = recons.cpu().numpy()
+
+    num_images = min(5, imgs.shape[0])
+    plt.figure(figsize=(10, 4))
+    for i in range(num_images):
+        plt.subplot(2, num_images, i + 1)
+        plt.imshow(imgs[i, 0], cmap="gray")
+        plt.title("Original")
+        plt.axis("off")
+
+        plt.subplot(2, num_images, i + 1 + num_images)
+        plt.imshow(recons[i, 0], cmap="gray")
+        plt.title("Reconstruction")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     test_loader = get_test_loader()
     model = load_model()
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
+    plot_reconstructions(model, test_loader)
