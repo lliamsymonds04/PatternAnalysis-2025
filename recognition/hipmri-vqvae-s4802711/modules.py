@@ -42,7 +42,9 @@ class VectorQuantizer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
+    def __init__(
+        self, in_channels: int = 1, hidden_channels: int = 128, latent_dim: int = 64
+    ):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(
@@ -63,7 +65,9 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, in_channels: int, hidden_channels: int, latent_dim: int):
+    def __init__(
+        self, in_channels: int = 1, hidden_channels: int = 128, latent_dim: int = 64
+    ):
         super().__init__()
         self.net = nn.Sequential(
             nn.ConvTranspose2d(
@@ -86,17 +90,17 @@ class Decoder(nn.Module):
 class VQVAE(nn.Module):
     def __init__(
         self,
-        in_channels: int,
-        hidden_channels: int,
-        latent_dim: int,
-        num_embeddings: int,
-        commitment_cost: float,
+        in_channels: int = 1,
+        hidden_channels: int = 128,
+        embedding_dim: int = 64,
+        num_embeddings: int = 512,
+        commitment_cost: float = 0.25,
     ):
         super().__init__()
 
-        self.encoder = Encoder(in_channels, hidden_channels, latent_dim)
-        self.decoder = Decoder(latent_dim, hidden_channels, in_channels)
-        self.quantizer = VectorQuantizer(num_embeddings, latent_dim, commitment_cost)
+        self.encoder = Encoder(in_channels, hidden_channels, embedding_dim)
+        self.decoder = Decoder(in_channels, hidden_channels, embedding_dim)
+        self.quantizer = VectorQuantizer(num_embeddings, embedding_dim, commitment_cost)
 
     def forward(self, x):
         z_e = self.encoder.forward(x)
