@@ -106,7 +106,7 @@ class NiftiSegmentationDataset(Dataset):
 
         return image
 
-    def _preprocess(self, inImage: np.ndarray, is_mask: bool = False) -> np.ndarray:
+    def _preprocess(self, inImage: np.ndarray) -> np.ndarray:
         """Applies common preprocessing steps."""
 
         if len(inImage.shape) == 3:
@@ -117,13 +117,13 @@ class NiftiSegmentationDataset(Dataset):
         TARGET_H, TARGET_W = 256, 256  # Define a safe target size
         inImage = self._pad_or_crop(inImage, (TARGET_H, TARGET_W))
 
-        if not is_mask and self.norm_image:
+        if self.norm_image:
             if inImage.std() != 0:
                 inImage = (inImage - inImage.mean()) / inImage.std()
             else:
                 inImage = inImage - inImage.mean()
 
-        if not is_mask and len(inImage.shape) == 2:
+        if len(inImage.shape) == 2:
             inImage = np.expand_dims(inImage, axis=-1)
 
         # Transpose to (C, H, W) for PyTorch
@@ -136,12 +136,14 @@ class NiftiSegmentationDataset(Dataset):
         img: np.ndarray = nib.load(self.image_fnames[idx]).get_fdata(  # type: ignore[attr-defined]
             caching="unchanged"
         )
-        if len(img.shape) == 3:
-            img = img[:, :, 0]
-        img = img.astype(self.dtype)
-        img = (img - img.mean()) / (img.std() + 1e-8)
-        img = np.expand_dims(img, axis=0)  # (1, H, W)
+        img = self._preprocess(img)
         return torch.from_numpy(img)
+        # if len(img.shape) == 3:
+        #     img = img[:, :, 0]
+        # img = img.astype(self.dtype)
+        # img = (img - img.mean()) / (img.std() + 1e-8)
+        # img = np.expand_dims(img, axis=0)  # (1, H, W)
+        # return torch.from_numpy(img)
 
 
 def load_data_helper(base_dir: pathlib.Path, subset: str):

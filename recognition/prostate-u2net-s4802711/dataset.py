@@ -98,6 +98,7 @@ class NiftiSegmentationDataset(Dataset):
         pad_W = max(0, target_W - W)
         
         # Calculate padding amounts to center the image
+        # Calculate padding amounts to center the image
     def __len__(self):
         return len(self.image_fnames)
 
@@ -201,7 +202,6 @@ def load_data_helper(base_dir: str, subset: str, total_classes: int):
 
     dataset = NiftiSegmentationDataset(
         img_files,
-        seg_files,
     total_classes = get_total_classes(seg_files)
     
     test_dataset = NiftiSegmentationDataset(
