@@ -36,6 +36,10 @@ def train_model(
         print(f"  Loss: {total_loss / len(train_loader)}")
 
 
+def save_model(model: VQVAE, path: pathlib.Path):
+    torch.save(model.state_dict(), path)
+
+
 if __name__ == "__main__":
     root_dir = pathlib.Path(__file__).parent.resolve()
     train_dataset, train_loader = load_data_helper(
@@ -49,3 +53,5 @@ if __name__ == "__main__":
     model = create_model().to(device)
 
     train_model(model, train_loader, device, epochs=10)
+
+    save_model(model, root_dir / "vqvae_model.pth")

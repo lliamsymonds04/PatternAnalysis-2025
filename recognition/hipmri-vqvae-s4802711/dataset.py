@@ -138,12 +138,6 @@ class NiftiSegmentationDataset(Dataset):
         )
         img = self._preprocess(img)
         return torch.from_numpy(img)
-        # if len(img.shape) == 3:
-        #     img = img[:, :, 0]
-        # img = img.astype(self.dtype)
-        # img = (img - img.mean()) / (img.std() + 1e-8)
-        # img = np.expand_dims(img, axis=0)  # (1, H, W)
-        # return torch.from_numpy(img)
 
 
 def load_data_helper(base_dir: pathlib.Path, subset: str):
