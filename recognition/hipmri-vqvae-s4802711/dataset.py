@@ -140,15 +140,14 @@ class NiftiSegmentationDataset(Dataset):
         return torch.from_numpy(img)
 
 
-def load_data_helper(base_dir: pathlib.Path, subset: str):
-    # img_dir = os.path.join(base_dir, f"keras_slices_{subset}")
+def load_data_helper(base_dir: pathlib.Path, subset: str, batch_size=8):
     img_dir = base_dir / f"keras_slices_{subset}"
 
     img_files = get_filenames(img_dir)
 
     dataset = NiftiSegmentationDataset(img_files, norm_image=True, dtype=np.float32)
 
-    loader = DataLoader(dataset, batch_size=8, shuffle=True)
+    loader = DataLoader(dataset, batch_size, shuffle=True)
 
     return dataset, loader
 

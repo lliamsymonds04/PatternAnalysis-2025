@@ -45,6 +45,7 @@ if __name__ == "__main__":
     train_dataset, train_loader = load_data_helper(
         root_dir / "keras_slices_data",
         "train",
+        batch_size=16,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -52,6 +53,6 @@ if __name__ == "__main__":
 
     model = create_model().to(device)
 
-    train_model(model, train_loader, device, epochs=10)
+    train_model(model, train_loader, device, epochs=50)
 
     save_model(model, root_dir / "vqvae_model.pth")
