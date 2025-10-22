@@ -3,14 +3,25 @@ from torch.utils.data import DataLoader
 from torch import nn
 import pathlib
 from dataset import load_data_helper
-from modules import VQVAE
+from modules import VQVAE, VQVAE2
 
 
-def create_model():
+def create_vqvae():
     return VQVAE(
         in_channels=1,
         hidden_channels=128,
         embedding_dim=64,
+        num_embeddings=512,
+        commitment_cost=0.25,
+    )
+
+
+def create_vqvae2():
+    return VQVAE2(
+        in_channels=1,
+        hidden_channels=128,
+        bottom_dim=64,
+        top_dim=64,
         num_embeddings=512,
         commitment_cost=0.25,
     )
@@ -37,7 +48,7 @@ def train_model(
         print(f"  Loss: {total_loss / len(train_loader)}")
 
 
-def save_model(model: VQVAE, path: pathlib.Path):
+def save_model(model: nn.Module, path: pathlib.Path):
     torch.save(model.state_dict(), path)
 
 
@@ -52,7 +63,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using device:", device)
 
-    model = create_model().to(device)
+    model = create_vqvae2().to(device)
 
     train_model(model, train_loader, device, epochs=50)
 

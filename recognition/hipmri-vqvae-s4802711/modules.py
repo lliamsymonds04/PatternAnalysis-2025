@@ -56,7 +56,7 @@ class Encoder(nn.Module):
             ),  # 64
             nn.ReLU(),
             nn.Conv2d(
-                hidden_channels, latent_dim, kernel_size=4, stride=2, padding=1
+                hidden_channels, latent_dim, kernel_size=3, stride=1, padding=1
             ),  # 32
         )
 
@@ -66,7 +66,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(
-        self, in_channels: int = 1, hidden_channels: int = 128, latent_dim: int = 64
+        self, out_channels: int = 1, hidden_channels: int = 128, latent_dim: int = 64
     ):
         super().__init__()
         self.net = nn.Sequential(
@@ -78,9 +78,10 @@ class Decoder(nn.Module):
                 hidden_channels, hidden_channels, kernel_size=4, stride=2, padding=1
             ),  # 64
             nn.ReLU(),
-            nn.ConvTranspose2d(
-                hidden_channels, in_channels, kernel_size=4, stride=2, padding=1
+            nn.Conv2d(
+                hidden_channels, out_channels, kernel_size=3, stride=1, padding=1
             ),  # 128
+            nn.Tanh(),
         )
 
     def forward(self, z):
@@ -113,26 +114,24 @@ class VQVAE(nn.Module):
 
 
 # modules for vqvae2
-class encoderTop(nn.Module):
+class EncoderTop(nn.Module):
     def __init__(
         self,
-        hidden_channels: int = 128,
         latent_dim: int = 64,
+        top_dim: int = 64,
     ):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(latent_dim, hidden_channels, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(latent_dim, latent_dim, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(
-                hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1
-            ),
+            nn.Conv2d(latent_dim, top_dim, kernel_size=3, stride=1, padding=1),
         )
 
     def forward(self, x):
         return self.net(x)
 
 
-class decoderTop(nn.Module):
+class DecoderTop(nn.Module):
     def __init__(
         self,
         top_dim: int = 64,
@@ -153,11 +152,46 @@ class VQVAE2(nn.Module):
         self,
         in_channels: int = 1,
         hidden_channels: int = 128,
-        embedding_dim: int = 64,
+        bottom_dim: int = 64,
+        top_dim: int = 64,
         num_embeddings: int = 512,
         commitment_cost: float = 0.25,
     ):
         super().__init__()
 
+        # encoders
+        self.encoder_bottom = Encoder(in_channels, hidden_channels, bottom_dim)
+        self.encoder_top = EncoderTop(bottom_dim, top_dim)
+
+        # decoders
+        self.decoder_top = DecoderTop(top_dim, bottom_dim)
+        self.decoder_bottom = Decoder(in_channels, hidden_channels, bottom_dim * 2)
+
+        # quantizers
+        self.vp_top = VectorQuantizer(num_embeddings, top_dim, commitment_cost)
+        self.vp_bottom = VectorQuantizer(num_embeddings, bottom_dim, commitment_cost)
+
     def forward(self, x):
-        return x
+        # bottom encoder
+        z_bottom = self.encoder_bottom.forward(x)
+
+        # top encoder on bottom encoder output
+        z_top = self.encoder_top.forward(z_bottom)
+
+        # quantize both
+        z_top_q, vq_top_loss = self.vp_top.forward(z_top)
+        z_bottom_q, vq_bottom_loss = self.vp_bottom.forward(z_bottom)
+
+        # decode the top
+        z_top_dec = self.decoder_top.forward(z_top_q)
+
+        # combine top decoded and bottom quantized
+        z_combined = torch.cat([z_top_dec, z_bottom_q], dim=1)
+        x_recon = self.decoder_bottom.forward(z_combined)
+
+        # losses
+        recon_loss = F.mse_loss(x_recon, x)
+        vq_loss = vq_top_loss + vq_bottom_loss
+        total_loss = recon_loss + vq_loss
+
+        return x_recon, total_loss, recon_loss, vq_loss
