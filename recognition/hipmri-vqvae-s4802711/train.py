@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch import nn
 import pathlib
+import time
 from dataset import load_data_helper
 from modules import VQVAE, VQVAE2
 
@@ -57,14 +58,34 @@ if __name__ == "__main__":
     train_dataset, train_loader = load_data_helper(
         root_dir / "keras_slices_data",
         "train",
-        batch_size=16,
+        batch_size=32,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using device:", device)
 
+    file_name = (
+        input("Enter model filename (default: vqvae_model.pth): ") or "vqvae_model.pth"
+    )
     model = create_vqvae2().to(device)
 
-    train_model(model, train_loader, device, epochs=50)
+    start = time.time()
+    print(f"training started at {time.ctime(start)}")
 
-    save_model(model, root_dir / "vqvae_model.pth")
+    try:
+        train_model(model, train_loader, device, epochs=50)
+        save_model(model, root_dir / file_name)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt detected, saving model...")
+        save_model(model, root_dir / file_name)
+    finally:
+        # output training duration
+        end = time.time()
+        print(f"training ended at {time.ctime(end)}")
+        training_minutes = (end - start) / 60
+        training_seconds = (end - start) % 60
+        print(
+            f"Total training time: {int(training_minutes)} minutes and {int(training_seconds)} seconds."
+        )
+
+    print("Model saved. Exiting...")

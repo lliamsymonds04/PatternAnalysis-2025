@@ -1,7 +1,8 @@
 import torch
+import torch.nn as nn
 import numpy as np
 from torchmetrics.functional import structural_similarity_index_measure as ssim
-from modules import VQVAE
+from modules import VQVAE, VQVAE2
 from dataset import load_data_helper
 import pathlib
 import matplotlib.pyplot as plt
@@ -9,13 +10,27 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def load_model():
+def load_vqvae():
     model = VQVAE(in_channels=1).to(device)
     root_dir = pathlib.Path(__file__).parent.resolve()
     model_path = root_dir / "vqvae_model.pth"
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     return model
+
+
+def load_vqvae2():
+    model = VQVAE2(in_channels=1).to(device)
+    root_dir = pathlib.Path(__file__).parent.resolve()
+    model_path = root_dir / "vqvae_model.pth"
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+    return model
+
+
+def load_model(model: nn.Module, path: pathlib.Path):
+    model.load_state_dict(torch.load(path, map_location=device))
+    model.eval()
 
 
 def get_test_loader():
@@ -27,7 +42,7 @@ def get_test_loader():
     return test_loader
 
 
-def calculate_ssim(model: VQVAE, test_loader):
+def calculate_ssim(model: nn.Module, test_loader):
     ssim_values = []
 
     with torch.no_grad():
@@ -49,7 +64,7 @@ def calculate_ssim(model: VQVAE, test_loader):
     return average_ssim
 
 
-def plot_reconstructions(model: VQVAE, test_loader):
+def plot_reconstructions(model: nn.Module, test_loader):
     imgs = next(iter(test_loader))
     imgs = imgs.to(device).float()
     with torch.no_grad():
@@ -79,7 +94,11 @@ def plot_reconstructions(model: VQVAE, test_loader):
 
 if __name__ == "__main__":
     test_loader = get_test_loader()
-    model = load_model()
+    model = VQVAE2(in_channels=1).to(device)
+    file_name = (
+        input("Enter model filename (default: vqvae_model.pth): ") or "vqvae_model.pth"
+    )
+    load_model(model, pathlib.Path(__file__).parent.resolve() / file_name)
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
