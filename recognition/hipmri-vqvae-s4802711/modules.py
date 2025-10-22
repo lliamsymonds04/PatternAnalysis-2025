@@ -110,3 +110,54 @@ class VQVAE(nn.Module):
         total_loss = recon_loss + vq_loss
 
         return x_recon, total_loss, recon_loss, vq_loss
+
+
+# modules for vqvae2
+class encoderTop(nn.Module):
+    def __init__(
+        self,
+        hidden_channels: int = 128,
+        latent_dim: int = 64,
+    ):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(latent_dim, hidden_channels, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(
+                hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1
+            ),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class decoderTop(nn.Module):
+    def __init__(
+        self,
+        top_dim: int = 64,
+        latent_dim: int = 64,
+    ):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.ConvTranspose2d(top_dim, latent_dim, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+        )
+
+    def forward(self, z):
+        return self.net(z)
+
+
+class VQVAE2(nn.Module):
+    def __init__(
+        self,
+        in_channels: int = 1,
+        hidden_channels: int = 128,
+        embedding_dim: int = 64,
+        num_embeddings: int = 512,
+        commitment_cost: float = 0.25,
+    ):
+        super().__init__()
+
+    def forward(self, x):
+        return x

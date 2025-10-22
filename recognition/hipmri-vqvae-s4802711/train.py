@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
+from torch import nn
 import pathlib
 from dataset import load_data_helper
 from modules import VQVAE
@@ -16,7 +17,7 @@ def create_model():
 
 
 def train_model(
-    model: VQVAE, train_loader: DataLoader, device: torch.device, epochs: int = 10
+    model: nn.Module, train_loader: DataLoader, device: torch.device, epochs: int = 10
 ):
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
 
