@@ -39,12 +39,12 @@ def train_model(
         for imgs in train_loader:
             imgs = imgs.to(device).float()
             optimizer.zero_grad()
-            _, vq_loss, _, _ = model.forward(imgs)
+            _, total_loss_batch, _, _ = model.forward(imgs)
 
-            vq_loss.backward()
+            total_loss_batch.backward()
             optimizer.step()
 
-            total_loss += vq_loss.item()
+            total_loss += total_loss_batch.item()
 
         print(f"  Loss: {total_loss / len(train_loader)}")
 

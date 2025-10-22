@@ -24,12 +24,16 @@ class VectorQuantizer(nn.Module):
         # compute the distances between the outputs and the embedding vectors
         distances = (
             torch.sum(z_e_flattened**2, dim=1, keepdim=True)
-            + torch.sum(embeddings, dim=1)
+            + torch.sum(embeddings**2, dim=1)
             - 2 * torch.matmul(z_e_flattened, embeddings.t())
         )
 
         encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
-        quantized = self.embeddings(encoding_indices).view(z_e.shape)
+        # quantized = self.embeddings(encoding_indices).view(z_e.shape)
+        quantized = F.embedding(encoding_indices, embeddings).view(
+            z_e.permute(0, 2, 3, 1).shape
+        )
+        quantized = quantized.permute(0, 3, 1, 2).contiguous()
 
         # loss terms
         e_latent_loss = F.mse_loss(quantized.detach(), z_e)
