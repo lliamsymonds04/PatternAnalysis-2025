@@ -12,6 +12,8 @@ The success of the model is evaluated using the Structural Similarity Index Meas
 
 ## How it Works
 
+![Diagram of VQVAE-2](./assets/vqva2.png)
+
 ## Dependencies
 
 ## Results
