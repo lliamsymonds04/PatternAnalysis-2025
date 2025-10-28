@@ -62,6 +62,25 @@ conda activate torch_env
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 nibabel -c pytorch -c nvidia -c conda-forge -y
 ```
 
+## Usage
+
+Running the training script:
+in the 'hipmri-vqvae-s4802711' directory, execute:
+
+```bash
+python train.py
+```
+
+Then follow the prompts to save the model.
+
+Run the prediction script to generate the reconstruction and synthetic images
+
+```bash
+python predict.py
+```
+
+Enter the path to the saved model when prompted.
+
 ## Results
 
 I trained a model with the settings configured in `train.py` and 50 Epochs. With this I was able to achieve a SSIM score of 0.9419 on the test set.

@@ -105,7 +105,7 @@ def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
         samples = torch.cat(samples_list, dim=0)
         samples = torch.clamp(samples, -1, 1)
 
-    plt.figure(figsize=(10, 2))
+    plt.figure(figsize=(10, 1.5))
     for i in range(num_images):
         plt.subplot(1, num_images, i + 1)
         plt.imshow(samples[i, 0].cpu().numpy(), cmap="gray")
@@ -128,7 +128,7 @@ def plot_reconstructions(model: nn.Module, test_loader):
     recons = recons.cpu().numpy()
 
     num_images = min(5, imgs.shape[0])
-    plt.figure(figsize=(10, 4))
+    plt.figure(figsize=(10, 3))
     for i in range(num_images):
         plt.subplot(2, num_images, i + 1)
         plt.imshow(imgs[i, 0], cmap="gray")
@@ -141,7 +141,7 @@ def plot_reconstructions(model: nn.Module, test_loader):
         plt.axis("off")
 
     plt.tight_layout()
-    plt.show()
+    plt.show(block=False)
 
 
 if __name__ == "__main__":
@@ -154,5 +154,5 @@ if __name__ == "__main__":
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
-    # plot_reconstructions(model, test_loader)
+    plot_reconstructions(model, test_loader)
     generate_new_images(model, test_loader, num_images=5)
