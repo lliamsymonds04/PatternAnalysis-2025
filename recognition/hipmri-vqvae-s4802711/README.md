@@ -12,9 +12,20 @@ The success of the model is evaluated using the Structural Similarity Index Meas
 
 ## How it Works
 
+The key difference between v2 and v1 is the hierarchy of vector quantized codes. This allows the model to model local information such as texture separately from the global structure. The training structure is illustrated below:
+
 ![Diagram of VQVAE-2 training](./assets/vqvae2-training.png)
 
-This illustration shows the architecture of a hierarchical VQ-VAE-2 model during training. The input image is 256x256. The top level compresses the input to 64x64 and the bottom level further compresses it to 32x32. The decoder then reconstructs the image from the two latent spaces.
+The model takes an input of 256x256. The top level compresses the input to 64x64 and the bottom level further compresses it to 32x32. The decoder is a forward feed-network that takes all the quantized latent layers as input and reconstructs the image back to its original size.
+
+The following question shows the process of vector quantization:
+$$\text{Quantize}(E(\mathbf{x})) = \mathbf{e}_k \text{, where } k = \underset{j}{\arg\min} \|E(\mathbf{x}) - \mathbf{e}_j\|$$
+
+This is then used in this algorithm to reconstruct the training images:
+
+![Training Algorithm](./assets/vqvae-train-alg.png)
+
+The implementation of the model can be found in `modules.py`
 
 ![Diagram of VQVAE-2 generation](./assets/vqvae2-generation.png)
 
@@ -52,3 +63,8 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.1 nibabel -c pytorc
 ```
 
 ## Results
+
+I trained a model with the settings configured in `train.py` and 50 Epochs. With this I was able to achieve a SSIM score of 0.9419 on the test set.
+
+Here are 5 reconstructions of the original data:
+![Generation Results](./assets/generation-results.png)
