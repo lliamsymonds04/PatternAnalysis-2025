@@ -162,6 +162,8 @@ class VQVAE2(nn.Module):
         commitment_cost: float = 0.25,
     ):
         super().__init__()
+        self.bottom_dim = bottom_dim
+        self.top_dim = top_dim
 
         # encoders
         self.encoder_bottom = Encoder(in_channels, hidden_channels, bottom_dim)

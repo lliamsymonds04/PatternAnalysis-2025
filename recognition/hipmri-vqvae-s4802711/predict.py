@@ -64,6 +64,58 @@ def calculate_ssim(model: nn.Module, test_loader):
     return average_ssim
 
 
+def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
+    """
+    Generate images by sampling and recombining latent codes from real images.
+    Since there's no trained prior, we sample latent codes from actual images
+    and recombine them to create variations.
+    """
+    with torch.no_grad():
+        # Get a batch of real images to extract latent codes from
+        imgs = next(iter(test_loader))
+        imgs = imgs.to(device).float()
+
+        # Encode images to get latent codes
+        z_bottom = model.encoder_bottom(imgs)
+        z_top = model.encoder_top(z_bottom)
+
+        # Quantize to get discrete codes
+        z_top_q, _ = model.vp_top(z_top)
+        z_bottom_q, _ = model.vp_bottom(z_bottom)
+
+        # For generation, randomly recombine top and bottom codes from different images
+        num_available = min(imgs.shape[0], num_images * 2)
+        samples_list = []
+
+        for i in range(num_images):
+            # Randomly select different images for top and bottom codes
+            top_idx = torch.randint(0, num_available, (1,)).item()
+            bottom_idx = torch.randint(0, num_available, (1,)).item()
+
+            # Use the quantized codes from different images
+            z_top_sample = z_top_q[top_idx : top_idx + 1]
+            z_bottom_sample = z_bottom_q[bottom_idx : bottom_idx + 1]
+
+            # Decode
+            z_top_dec = model.decoder_top(z_top_sample)
+            z_combined = torch.cat([z_top_dec, z_bottom_sample], dim=1)
+            sample = model.decoder_bottom(z_combined)
+            samples_list.append(sample)
+
+        samples = torch.cat(samples_list, dim=0)
+        samples = torch.clamp(samples, -1, 1)
+
+    plt.figure(figsize=(10, 2))
+    for i in range(num_images):
+        plt.subplot(1, num_images, i + 1)
+        plt.imshow(samples[i, 0].cpu().numpy(), cmap="gray")
+        plt.title(f"image {i + 1}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_reconstructions(model: nn.Module, test_loader):
     imgs = next(iter(test_loader))
     imgs = imgs.to(device).float()
@@ -102,4 +154,5 @@ if __name__ == "__main__":
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
-    plot_reconstructions(model, test_loader)
+    # plot_reconstructions(model, test_loader)
+    generate_new_images(model, test_loader, num_images=5)
