@@ -76,7 +76,7 @@ Then follow the prompts to save the model.
 Run the prediction script to generate the reconstruction and synthetic images
 
 ```bash
-python predict.py
+python predict.py  --num_images 5 --save_images
 ```
 
 Enter the path to the saved model when prompted.

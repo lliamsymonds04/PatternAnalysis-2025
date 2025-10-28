@@ -170,3 +170,4 @@ run-*.pid
 .venvignore
 
 keras_slices_data/
+output/

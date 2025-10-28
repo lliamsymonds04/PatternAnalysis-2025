@@ -6,6 +6,7 @@ from modules import VQVAE, VQVAE2
 from dataset import load_data_helper
 import pathlib
 import matplotlib.pyplot as plt
+import argparse
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -87,7 +88,7 @@ def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
         num_available = min(imgs.shape[0], num_images * 2)
         samples_list = []
 
-        for i in range(num_images):
+        for _ in range(num_images):
             # Randomly select different images for top and bottom codes
             top_idx = torch.randint(0, num_available, (1,)).item()
             bottom_idx = torch.randint(0, num_available, (1,)).item()
@@ -105,9 +106,13 @@ def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
         samples = torch.cat(samples_list, dim=0)
         samples = torch.clamp(samples, -1, 1)
 
+    return samples
+
+
+def plot_samples(samples: torch.Tensor):
     plt.figure(figsize=(10, 1.5))
-    for i in range(num_images):
-        plt.subplot(1, num_images, i + 1)
+    for i in range(len(samples)):
+        plt.subplot(1, len(samples), i + 1)
         plt.imshow(samples[i, 0].cpu().numpy(), cmap="gray")
         plt.title(f"image {i + 1}")
         plt.axis("off")
@@ -145,14 +150,57 @@ def plot_reconstructions(model: nn.Module, test_loader):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="VQ-VAE-2 model on test set and generate images."
+    )
+
+    # arguments
+    parser.add_argument(
+        "--filename",
+        type=str,
+        default="vqvae_model.pth",
+        help="Model filename to load (default: vqvae_model.pth)",
+    )
+
+    parser.add_argument(
+        "--num_images",
+        type=int,
+        default=5,
+        help="Number of new images to generate (default: 5)",
+    )
+
+    parser.add_argument(
+        "--save_images",
+        action="store_true",
+        help="Whether to save generated images (default: False)",
+    )
+
+    args = parser.parse_args()
+
     test_loader = get_test_loader()
     model = VQVAE2(in_channels=1).to(device)
-    file_name = (
-        input("Enter model filename (default: vqvae_model.pth): ") or "vqvae_model.pth"
-    )
-    load_model(model, pathlib.Path(__file__).parent.resolve() / file_name)
+    load_model(model, pathlib.Path(__file__).parent.resolve() / args.filename)
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
+
+    samples = generate_new_images(model, test_loader, num_images=args.num_images)
+
+    if args.save_images:
+        # Define output directory in the parent folder of the script
+        output_dir = pathlib.Path(__file__).resolve().parent / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save images
+        for i in range(samples.shape[0]):
+            save_path = output_dir / f"generated_image_{i + 1}.png"
+            plt.imsave(
+                save_path,
+                samples[i, 0].cpu().numpy(),
+                cmap="gray",
+            )
+
+        print(f"Saved generated images to {output_dir}/")
+
     plot_reconstructions(model, test_loader)
-    generate_new_images(model, test_loader, num_images=5)
+    plot_samples(samples[:5])
