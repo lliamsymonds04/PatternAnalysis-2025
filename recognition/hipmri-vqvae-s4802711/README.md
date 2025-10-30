@@ -29,7 +29,7 @@ The implementation of the model can be found in `modules.py`
 
 ![Diagram of VQVAE-2 generation](./assets/vqvae2-generation.png)
 
-This diagram shows how the class label is fed into the two encoders during generation to construct a new image using the top and bottom decoders.
+This diagram shows how the class label is fed into the two encoders during generation to construct a new image using the top and bottom decoders with a transformer.
 
 [Learn more about VQ-VAE-2 here](https://arxiv.org/pdf/1906.00446)
 
@@ -77,10 +77,16 @@ in the 'hipmri-vqvae-s4802711' directory, execute:
 python train.py --epochs 10 --batch_size 16 --learning_rate 0.0002
 ```
 
-Run the prediction script to generate the reconstruction and synthetic images
+Then train the prior model to sample from the latent space:
 
 ```bash
-python predict.py  --num_images 5 --save_images
+python train_prior.py --vqvae_path  model.pth --epochs 10 --batch_size 16
+```
+
+Finally, use the prediction script to generate the reconstruction and synthetic images
+
+```bash
+python predict.py --vqvae_path model.pth --prior_path prior.pth --num_images 5 --save_images
 ```
 
 This will generate 5 synthetic images and save them to the `output` folder.
