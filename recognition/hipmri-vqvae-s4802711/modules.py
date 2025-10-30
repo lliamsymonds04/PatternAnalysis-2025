@@ -155,6 +155,7 @@ class VQVAE2(nn.Module):
     def __init__(
         self,
         in_channels: int = 1,
+        seg_channels: int = 4,
         hidden_channels: int = 128,
         bottom_dim: int = 64,
         top_dim: int = 64,
@@ -166,38 +167,88 @@ class VQVAE2(nn.Module):
         self.top_dim = top_dim
 
         # encoders
-        self.encoder_bottom = Encoder(in_channels, hidden_channels, bottom_dim)
+        self.encoder_bottom = Encoder(
+            in_channels + seg_channels, hidden_channels, bottom_dim
+        )
         self.encoder_top = EncoderTop(bottom_dim, top_dim)
 
         # decoders
         self.decoder_top = DecoderTop(top_dim, bottom_dim)
-        self.decoder_bottom = Decoder(in_channels, hidden_channels, bottom_dim * 2)
+        # self.decoder_bottom = Decoder(in_channels, hidden_channels, bottom_dim * 2)
+        self.decoder_bottom = nn.Sequential(
+            nn.Conv2d(
+                bottom_dim * 2 + seg_channels,
+                hidden_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+            nn.ReLU(),
+            Decoder(
+                hidden_channels=hidden_channels,
+                latent_dim=hidden_channels,
+                out_channels=in_channels,
+            ),
+        )
 
         # quantizers
         self.vp_top = VectorQuantizer(num_embeddings, top_dim, commitment_cost)
         self.vp_bottom = VectorQuantizer(num_embeddings, bottom_dim, commitment_cost)
 
-    def forward(self, x):
-        # bottom encoder
-        z_bottom = self.encoder_bottom.forward(x)
+    def forward(self, x, seg):
+        # Concatenate image and segmentation for encoding
+        x_cond = torch.cat([x, seg], dim=1)
 
-        # top encoder on bottom encoder output
-        z_top = self.encoder_top.forward(z_bottom)
+        # Encode
+        z_bottom = self.encoder_bottom(x_cond)
+        z_top = self.encoder_top(z_bottom)
 
-        # quantize both
-        z_top_q, vq_top_loss = self.vp_top.forward(z_top)
-        z_bottom_q, vq_bottom_loss = self.vp_bottom.forward(z_bottom)
+        # Quantize
+        z_top_q, vq_top_loss = self.vp_top(z_top)
+        z_bottom_q, vq_bottom_loss = self.vp_bottom(z_bottom)
 
-        # decode the top
-        z_top_dec = self.decoder_top.forward(z_top_q)
+        # Decode
+        z_top_dec = self.decoder_top(z_top_q)
 
-        # combine top decoded and bottom quantized
-        z_combined = torch.cat([z_top_dec, z_bottom_q], dim=1)
-        x_recon = self.decoder_bottom.forward(z_combined)
+        # Upsample segmentation to match z_bottom_q spatial dimensions
+        seg_upsampled = F.interpolate(seg, size=z_bottom_q.shape[2:], mode="nearest")
 
-        # losses
+        # Combine for decoding
+        z_combined = torch.cat([z_top_dec, z_bottom_q, seg_upsampled], dim=1)
+        x_recon = self.decoder_bottom(z_combined)
+
+        # Losses
         recon_loss = F.mse_loss(x_recon, x)
         vq_loss = vq_top_loss + vq_bottom_loss
         total_loss = recon_loss + vq_loss
 
         return x_recon, total_loss, recon_loss, vq_loss
+
+    def generate(self, seg):
+        """Generate image from segmentation only."""
+        # Use random latent codes or zeros for unconditional generation
+        batch_size = seg.shape[0]
+        device = seg.device
+
+        # Sample random codes from embeddings
+        top_codes = torch.randint(
+            0, self.vp_top.num_embeddings, (batch_size, 32, 32), device=device
+        )
+        bottom_codes = torch.randint(
+            0, self.vp_bottom.num_embeddings, (batch_size, 64, 64), device=device
+        )
+
+        # Get quantized vectors
+        z_top_q = F.embedding(top_codes, self.vp_top.embeddings.weight)
+        z_top_q = z_top_q.permute(0, 3, 1, 2)
+
+        z_bottom_q = F.embedding(bottom_codes, self.vp_bottom.embeddings.weight)
+        z_bottom_q = z_bottom_q.permute(0, 3, 1, 2)
+
+        # Decode
+        z_top_dec = self.decoder_top(z_top_q)
+        seg_upsampled = F.interpolate(seg, size=z_bottom_q.shape[2:], mode="nearest")
+        z_combined = torch.cat([z_top_dec, z_bottom_q, seg_upsampled], dim=1)
+        x_gen = self.decoder_bottom(z_combined)
+
+        return x_gen
