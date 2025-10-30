@@ -117,7 +117,8 @@ def plot_samples(samples: torch.Tensor):
         plt.title(f"image {i + 1}")
         plt.axis("off")
 
-    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.05, hspace=0, top=1, bottom=0, left=0, right=1)
+    plt.margins(0)
     plt.show()
 
 

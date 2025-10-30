@@ -21,7 +21,7 @@ The model takes an input of 256x256. The top level compresses the input to 64x64
 The following question shows the process of vector quantization:
 $$\text{Quantize}(E(\mathbf{x})) = \mathbf{e}_k \text{, where } k = \underset{j}{\arg\min} \|E(\mathbf{x}) - \mathbf{e}_j\|$$
 
-This is then used in this algorithm to reconstruct the training images:
+This process ensures a discrete, codebook-based representation, which is essential for the quality of the final images.
 
 ![Training Algorithm](./assets/vqvae-train-alg.png)
 
@@ -29,7 +29,7 @@ The implementation of the model can be found in `modules.py`
 
 ![Diagram of VQVAE-2 generation](./assets/vqvae2-generation.png)
 
-This diagram shows how the class label is fed into the two encoders during generation to construct a new image.
+This diagram shows how the class label is fed into the two encoders during generation to construct a new image using the top and bottom decoders.
 
 [Learn more about VQ-VAE-2 here](https://arxiv.org/pdf/1906.00446)
 
@@ -91,7 +91,7 @@ Use `--help` to see all options of a file.
 
 ## Results
 
-I trained a model with the settings configured in `train.py` and 50 Epochs, a batch size 0f 32 and a learning rate of 0.0002. Doing this I was able to achieve a SSIM score of 0.9419 on the test set.
+I trained a model with the settings configured in `train.py` and 50 Epochs, a batch size of 32 and a learning rate of 0.0002. Doing this I was able to achieve a SSIM score of 0.9419 on the test set.
 
 Here are 5 reconstructions of the original data:
 ![Reconstruction Results](./assets/reconstruction-results.png)
