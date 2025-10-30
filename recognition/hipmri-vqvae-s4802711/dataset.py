@@ -8,6 +8,7 @@ import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pathlib
+from numpy import typing as npt
 
 
 # --- Utility Functions ---
@@ -21,7 +22,9 @@ def get_filenames(directory: pathlib.Path) -> list[pathlib.Path]:
     return files
 
 
-def to_channels(arr: np.ndarray, total_classes: int, dtype=np.uint8) -> np.ndarray:
+def to_channels(
+    arr: np.ndarray, total_classes: int, dtype: npt.DTypeLike = np.uint8
+) -> np.ndarray:
     """
     Converts a single-channel integer-labeled segmentation map to one-hot encoding,
     guaranteeing a fixed number of channels defined by total_classes.
@@ -51,12 +54,16 @@ class NiftiSegmentationDataset(Dataset):
     def __init__(
         self,
         image_fnames: list[pathlib.Path],
+        seq_fnames: list[pathlib.Path],
+        num_classes: int,
         norm_image: bool = False,
         dtype=np.float32,
     ):
         self.image_fnames = image_fnames
+        self.seq_fnames = seq_fnames
         self.norm_image = norm_image
         self.dtype = dtype
+        self.num_classes = num_classes
 
     def __len__(self):
         return len(self.image_fnames)
@@ -106,24 +113,29 @@ class NiftiSegmentationDataset(Dataset):
 
         return image
 
-    def _preprocess(self, inImage: np.ndarray) -> np.ndarray:
+    def _preprocess(self, inImage: np.ndarray, is_mask: bool = False) -> np.ndarray:
         """Applies common preprocessing steps."""
 
         if len(inImage.shape) == 3:
-            inImage = inImage[:, :, inImage.shape[2] // 2]
+            inImage = inImage[:, :, 0]
 
         inImage = inImage.astype(self.dtype)
 
         TARGET_H, TARGET_W = 256, 256  # Define a safe target size
         inImage = self._pad_or_crop(inImage, (TARGET_H, TARGET_W))
 
-        if self.norm_image:
+        if not is_mask and self.norm_image:
             if inImage.std() != 0:
                 inImage = (inImage - inImage.mean()) / inImage.std()
             else:
                 inImage = inImage - inImage.mean()
 
-        if len(inImage.shape) == 2:
+        if is_mask:
+            inImage = to_channels(
+                inImage, total_classes=self.num_classes, dtype=self.dtype
+            )
+
+        if not is_mask and len(inImage.shape) == 2:
             inImage = np.expand_dims(inImage, axis=-1)
 
         # Transpose to (C, H, W) for PyTorch
@@ -137,15 +149,32 @@ class NiftiSegmentationDataset(Dataset):
             caching="unchanged"
         )
         img = self._preprocess(img)
+
+        if self.seq_fnames is not None:
+            seg: np.ndarray = nib.load(self.seq_fnames[idx]).get_fdata(  # type: ignore[attr-defined]
+                caching="unchanged"
+            )
+            return torch.from_numpy(img), torch.from_numpy(seg)
+
         return torch.from_numpy(img)
 
 
-def load_data_helper(base_dir: pathlib.Path, subset: str, batch_size=8):
+def load_data_helper(
+    base_dir: pathlib.Path, subset: str, num_classes: int, batch_size=8
+):
     img_dir = base_dir / f"keras_slices_{subset}"
+    seg_dir = base_dir / f"keras_slices_seg_{subset}"
 
     img_files = get_filenames(img_dir)
+    seg_files = get_filenames(seg_dir)
 
-    dataset = NiftiSegmentationDataset(img_files, norm_image=True, dtype=np.float32)
+    dataset = NiftiSegmentationDataset(
+        img_files,
+        seq_fnames=seg_files,
+        norm_image=True,
+        num_classes=num_classes,
+        dtype=np.float32,
+    )
 
     loader = DataLoader(dataset, batch_size, shuffle=True)
 
@@ -166,15 +195,12 @@ if __name__ == "__main__":
             print("  ", p.name)
         raise FileNotFoundError(f"Data directory not found: {img_dir}")
 
-    img_files = get_filenames(img_dir)
-
-    test_dataset = NiftiSegmentationDataset(
-        img_files, norm_image=True, dtype=np.float32
+    test_dataset, test_loader = load_data_helper(
+        base_dir, subset="test", num_classes=6, batch_size=8
     )
-    test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
     # Test an item to verify shapes
-    first_image = test_dataset[0]
+    first_image, _ = test_dataset[0]
 
     print("-" * 50)
     print(f"Test image shape: {first_image.shape} (C, H, W)")
