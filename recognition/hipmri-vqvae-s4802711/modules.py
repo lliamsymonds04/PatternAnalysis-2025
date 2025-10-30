@@ -252,3 +252,70 @@ class VQVAE2(nn.Module):
         x_gen = self.decoder_bottom(z_combined)
 
         return x_gen
+
+
+class TransformerPrior(nn.Module):
+    def __init__(
+        self,
+        num_embeddings,
+        hidden_dim=512,
+        n_layers=6,
+        n_heads=8,
+        seq_len=32 * 32,
+        dropout=0.1,
+    ):
+        """
+        Transformer prior for VQ-VAE-2.
+        Args:
+            num_embeddings: number of discrete codes (same as VectorQuantizer)
+            hidden_dim: embedding dim inside transformer
+            n_layers: number of transformer layers
+            n_heads: attention heads
+            seq_len: length of flattened latent map (H*W)
+        """
+        super().__init__()
+        self.num_embeddings = num_embeddings
+        self.seq_len = seq_len
+
+        # code embedding
+        self.token_emb = nn.Embedding(num_embeddings, hidden_dim)
+        # positional embedding
+        self.pos_emb = nn.Parameter(torch.randn(1, seq_len, hidden_dim))
+
+        # transformer
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=n_heads,
+            dim_feedforward=hidden_dim * 4,
+            dropout=dropout,
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+
+        # output projection to logits over discrete codes
+        self.to_logits = nn.Linear(hidden_dim, num_embeddings)
+
+    def forward(self, x_seq):
+        """
+        Args:
+            x_seq: LongTensor of shape (B, H*W), discrete code indices from VQ-VAE
+        Returns:
+            logits: (B, seq_len, num_embeddings)
+        """
+        # embed tokens + positions
+        x = self.token_emb(x_seq) + self.pos_emb[:, : x_seq.size(1), :]
+        x = x.permute(1, 0, 2)  # Transformer expects (seq_len, batch, embed_dim)
+        out = self.transformer(x)
+        out = out.permute(1, 0, 2)  # back to (batch, seq_len, embed_dim)
+        logits = self.to_logits(out)
+        return logits
+
+    def sample(self, device, seq_len, temperature=1.0):
+        """
+        Sample discrete codes autoregressively
+        """
+        codes = torch.zeros(1, seq_len, dtype=torch.long, device=device)
+        for t in range(seq_len):
+            logits = self.forward(codes)
+            probs = F.softmax(logits[:, t, :] / temperature, dim=-1)
+            codes[:, t] = torch.multinomial(probs, 1).squeeze(-1)
+        return codes
