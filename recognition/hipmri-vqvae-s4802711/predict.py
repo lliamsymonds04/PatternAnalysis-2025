@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from torchmetrics.functional import structural_similarity_index_measure as ssim
-from modules import VQVAE, VQVAE2
+from modules import VQVAE, VQVAE2, TransformerPrior
 from dataset import load_data_helper
 import pathlib
 import matplotlib.pyplot as plt
@@ -32,6 +33,13 @@ def load_vqvae2():
 def load_model(model: nn.Module, path: pathlib.Path):
     model.load_state_dict(torch.load(path, map_location=device))
     model.eval()
+
+
+def load_prior(prior_path: pathlib.Path):
+    prior = TransformerPrior(num_embeddings=512, seq_len=32 * 32).to(device)
+    prior.load_state_dict(torch.load(prior_path, map_location=device))
+    prior.eval()
+    return prior
 
 
 def get_test_loader(num_classes: int = 6, batch_size: int = 8):
@@ -68,69 +76,6 @@ def calculate_ssim(model: nn.Module, test_loader):
     return average_ssim
 
 
-def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
-    """
-    Generate images by sampling and recombining latent codes from real images.
-    Since there's no trained prior, we sample latent codes from actual images
-    and recombine them to create variations.
-    """
-    with torch.no_grad():
-        # Get a batch of real images to extract latent codes from
-        imgs, segs = next(iter(test_loader))
-        imgs = imgs.to(device).float()
-        segs = segs.to(device).float()
-
-        # Concatenate image and segmentation
-        x_cond = torch.cat([imgs, segs], dim=1)
-
-        # Encode images to get latent codes
-        z_bottom = model.encoder_bottom(x_cond)
-        z_top = model.encoder_top(z_bottom)
-
-        # Quantize to get discrete codes
-        z_top_q, _ = model.vp_top(z_top)
-        z_bottom_q, _ = model.vp_bottom(z_bottom)
-
-        # For generation, randomly recombine top and bottom codes from different images
-        num_available = min(imgs.shape[0], num_images * 2)
-        samples_list = []
-
-        for _ in range(num_images):
-            # Randomly select different images for top and bottom codes
-            top_idx = torch.randint(0, num_available, (1,)).item()
-            bottom_idx = torch.randint(0, num_available, (1,)).item()
-            seg_idx = torch.randint(0, num_available, (1,)).item()
-
-            # Use the quantized codes from different images
-            z_top_sample = z_top_q[top_idx : top_idx + 1]
-            z_bottom_sample = z_bottom_q[bottom_idx : bottom_idx + 1]
-            seg_sample = segs[seg_idx : seg_idx + 1]
-
-            # Decode
-            z_top_dec = model.decoder_top(z_top_sample)
-            z_combined = torch.cat([z_top_dec, z_bottom_sample, seg_sample], dim=1)
-            sample = model.decoder_bottom(z_combined)
-            samples_list.append(sample)
-
-        samples = torch.cat(samples_list, dim=0)
-        samples = torch.clamp(samples, -1, 1)
-
-    return samples
-
-
-def plot_samples(samples: torch.Tensor):
-    plt.figure(figsize=(10, 1.5))
-    for i in range(len(samples)):
-        plt.subplot(1, len(samples), i + 1)
-        plt.imshow(samples[i, 0].cpu().numpy(), cmap="gray")
-        plt.title(f"image {i + 1}")
-        plt.axis("off")
-
-    plt.subplots_adjust(wspace=0.05, hspace=0, top=1, bottom=0, left=0, right=1)
-    plt.margins(0)
-    plt.show()
-
-
 def plot_reconstructions(model: nn.Module, test_loader):
     batch = next(iter(test_loader))
     imgs, segs = batch
@@ -161,6 +106,71 @@ def plot_reconstructions(model: nn.Module, test_loader):
     plt.show(block=False)
 
 
+def generate_from_prior(vqvae: VQVAE2, prior: TransformerPrior, seg, temperature=1.0):
+    """Generate images using the transformer prior and VQ-VAE-2 decoder."""
+    with torch.no_grad():
+        batch_size = seg.shape[0]
+
+        # Sample top-level codes from prior
+        top_codes = prior.sample(device, seq_len=32 * 32, temperature=temperature)
+        top_codes = top_codes.repeat(batch_size, 1)
+
+        # Reshape to spatial dimensions
+        top_codes = top_codes.view(batch_size, 32, 32)
+
+        # Convert codes to quantized latents
+        z_top_q = F.embedding(top_codes, vqvae.vp_top.embeddings.weight)
+        z_top_q = z_top_q.permute(0, 3, 1, 2).contiguous()
+
+        # Sample random bottom codes
+        bottom_codes = torch.randint(
+            0, vqvae.vp_bottom.num_embeddings, (batch_size, 64, 64), device=device
+        )
+        z_bottom_q = F.embedding(bottom_codes, vqvae.vp_bottom.embeddings.weight)
+        z_bottom_q = z_bottom_q.permute(0, 3, 1, 2).contiguous()
+
+        # Decode
+        z_top_dec = vqvae.decoder_top(z_top_q)
+        seg_upsampled = F.interpolate(seg, size=z_bottom_q.shape[2:], mode="nearest")
+        z_combined = torch.cat([z_top_dec, z_bottom_q, seg_upsampled], dim=1)
+        x_gen = vqvae.decoder_bottom(z_combined)
+
+        return x_gen
+
+
+def plot_prior_generations(
+    vqvae: VQVAE2, prior: TransformerPrior, test_loader, num_images=5, temperature=1.0
+):
+    """Generate and plot images using the transformer prior."""
+    batch = next(iter(test_loader))
+    _, segs = batch
+    segs = segs.to(device).float()
+
+    with torch.no_grad():
+        generated = generate_from_prior(
+            vqvae, prior, segs[:num_images], temperature=temperature
+        )
+
+    generated = torch.clamp(generated, -1, 1)
+    generated = generated.cpu().numpy()
+    segs_np = segs.cpu().numpy()
+
+    plt.figure(figsize=(10, 4))
+    for i in range(min(num_images, generated.shape[0])):
+        plt.subplot(2, num_images, i + 1)
+        plt.imshow(segs_np[i].argmax(0), cmap="tab10")
+        plt.title("Segmentation")
+        plt.axis("off")
+
+        plt.subplot(2, num_images, i + 1 + num_images)
+        plt.imshow(generated[i, 0], cmap="gray")
+        plt.title("Generated")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="VQ-VAE-2 model on test set and generate images."
@@ -168,7 +178,7 @@ if __name__ == "__main__":
 
     # arguments
     parser.add_argument(
-        "--filename",
+        "--vqvae_path",
         type=str,
         default="vqvae_model.pth",
         help="Model filename to load (default: vqvae_model.pth)",
@@ -187,32 +197,37 @@ if __name__ == "__main__":
         help="Whether to save generated images (default: False)",
     )
 
+    parser.add_argument(
+        "--prior_path",
+        type=str,
+        default=None,
+        help="Path to transformer prior model (default: None, skips prior generation)",
+    )
+
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Sampling temperature for prior generation (default: 1.0)",
+    )
+
     args = parser.parse_args()
 
     test_loader = get_test_loader()
     model = VQVAE2(in_channels=1, seg_channels=6).to(device)
-    load_model(model, pathlib.Path(__file__).parent.resolve() / args.filename)
+    load_model(model, pathlib.Path(__file__).parent.resolve() / args.vqvae_path)
 
     average_ssim = calculate_ssim(model, test_loader)
     print(f"average SSIM on test set: {average_ssim:.4f}")
-
-    samples = generate_new_images(model, test_loader, num_images=args.num_images)
-
-    if args.save_images:
-        # Define output directory in the parent folder of the script
-        output_dir = pathlib.Path(__file__).resolve().parent / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save images
-        for i in range(samples.shape[0]):
-            save_path = output_dir / f"generated_image_{i + 1}.png"
-            plt.imsave(
-                save_path,
-                samples[i, 0].cpu().numpy(),
-                cmap="gray",
-            )
-
-        print(f"Saved generated images to {output_dir}/")
-
     plot_reconstructions(model, test_loader)
-    plot_samples(samples[:5])
+
+    # Generate from prior if path provided
+    if args.prior_path:
+        root_dir = pathlib.Path(__file__).parent.resolve()
+        prior = load_prior(root_dir / args.prior_path)
+        print(
+            f"Generating {args.num_images} images from prior with temperature={args.temperature}"
+        )
+        plot_prior_generations(
+            model, prior, test_loader, args.num_images, args.temperature
+        )

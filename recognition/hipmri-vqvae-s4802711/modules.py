@@ -282,12 +282,13 @@ class TransformerPrior(nn.Module):
         # positional embedding
         self.pos_emb = nn.Parameter(torch.randn(1, seq_len, hidden_dim))
 
-        # transformer
+        # transformer with optimizations
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=n_heads,
             dim_feedforward=hidden_dim * 4,
             dropout=dropout,
+            batch_first=True,  # Use batch_first for better performance
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
@@ -303,19 +304,20 @@ class TransformerPrior(nn.Module):
         """
         # embed tokens + positions
         x = self.token_emb(x_seq) + self.pos_emb[:, : x_seq.size(1), :]
-        x = x.permute(1, 0, 2)  # Transformer expects (seq_len, batch, embed_dim)
         out = self.transformer(x)
-        out = out.permute(1, 0, 2)  # back to (batch, seq_len, embed_dim)
         logits = self.to_logits(out)
         return logits
 
-    def sample(self, device, seq_len, temperature=1.0):
+    @torch.inference_mode()
+    def sample(self, device, batch_size=1, seq_len=None, temperature=1.0):
         """
         Sample discrete codes autoregressively
         """
-        codes = torch.zeros(1, seq_len, dtype=torch.long, device=device)
+        if seq_len is None:
+            seq_len = self.seq_len
+        codes = torch.zeros(batch_size, seq_len, dtype=torch.long, device=device)
         for t in range(seq_len):
-            logits = self.forward(codes)
-            probs = F.softmax(logits[:, t, :] / temperature, dim=-1)
+            logits = self.forward(codes[:, :t+1])
+            probs = F.softmax(logits[:, -1, :] / temperature, dim=-1)
             codes[:, t] = torch.multinomial(probs, 1).squeeze(-1)
         return codes
