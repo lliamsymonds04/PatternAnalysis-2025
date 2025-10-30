@@ -116,8 +116,11 @@ class NiftiSegmentationDataset(Dataset):
     def _preprocess(self, inImage: np.ndarray, is_mask: bool = False) -> np.ndarray:
         """Applies common preprocessing steps."""
 
+        # if len(inImage.shape) == 3:
+        #     inImage = inImage[:, :, 0]
+
         if len(inImage.shape) == 3:
-            inImage = inImage[:, :, 0]
+            inImage = inImage[:, :, inImage.shape[2] // 2]
 
         inImage = inImage.astype(self.dtype)
 
@@ -150,13 +153,12 @@ class NiftiSegmentationDataset(Dataset):
         )
         img = self._preprocess(img)
 
-        if self.seq_fnames is not None:
-            seg: np.ndarray = nib.load(self.seq_fnames[idx]).get_fdata(  # type: ignore[attr-defined]
-                caching="unchanged"
-            )
-            return torch.from_numpy(img), torch.from_numpy(seg)
+        seg: np.ndarray = nib.load(self.seq_fnames[idx]).get_fdata(  # type: ignore[attr-defined]
+            caching="unchanged"
+        )
+        seg = self._preprocess(seg, is_mask=True)
 
-        return torch.from_numpy(img)
+        return torch.from_numpy(img), torch.from_numpy(seg)
 
 
 def load_data_helper(

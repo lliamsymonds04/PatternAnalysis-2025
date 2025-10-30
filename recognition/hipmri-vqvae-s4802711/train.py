@@ -21,6 +21,7 @@ def create_vqvae():
 def create_vqvae2():
     return VQVAE2(
         in_channels=1,
+        seg_channels=6,
         hidden_channels=128,
         bottom_dim=64,
         top_dim=64,
@@ -41,10 +42,13 @@ def train_model(
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}/{epochs}")
         total_loss = 0.0
-        for imgs in train_loader:
+        for batch in train_loader:
+            imgs, segs = batch
             imgs = imgs.to(device).float()
+            segs = segs.to(device).float()
+
             optimizer.zero_grad()
-            _, total_loss_batch, _, _ = model.forward(imgs)
+            _, total_loss_batch, _, _ = model.forward(imgs, segs)
 
             total_loss_batch.backward()
             optimizer.step()
@@ -82,6 +86,7 @@ if __name__ == "__main__":
         root_dir / args.data_dir,
         "train",
         batch_size=args.batch_size,
+        num_classes=6,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

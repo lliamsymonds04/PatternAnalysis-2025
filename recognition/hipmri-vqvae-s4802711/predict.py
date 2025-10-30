@@ -34,11 +34,13 @@ def load_model(model: nn.Module, path: pathlib.Path):
     model.eval()
 
 
-def get_test_loader():
+def get_test_loader(num_classes: int = 6, batch_size: int = 8):
     root_dir = pathlib.Path(__file__).parent.resolve()
     _, test_loader = load_data_helper(
         root_dir / "keras_slices_data",
         "test",
+        num_classes=num_classes,
+        batch_size=batch_size,
     )
     return test_loader
 
@@ -47,9 +49,10 @@ def calculate_ssim(model: nn.Module, test_loader):
     ssim_values = []
 
     with torch.no_grad():
-        for imgs in test_loader:
+        for imgs, segs in test_loader:
             imgs = imgs.to(device).float()
-            recons, _, _, _ = model.forward(imgs)
+            segs = segs.to(device).float()
+            recons, _, _, _ = model.forward(imgs, segs)
 
             # clip to valid range
             recons = torch.clamp(recons, -1, 1)
@@ -73,11 +76,15 @@ def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
     """
     with torch.no_grad():
         # Get a batch of real images to extract latent codes from
-        imgs = next(iter(test_loader))
+        imgs, segs = next(iter(test_loader))
         imgs = imgs.to(device).float()
+        segs = segs.to(device).float()
+
+        # Concatenate image and segmentation
+        x_cond = torch.cat([imgs, segs], dim=1)
 
         # Encode images to get latent codes
-        z_bottom = model.encoder_bottom(imgs)
+        z_bottom = model.encoder_bottom(x_cond)
         z_top = model.encoder_top(z_bottom)
 
         # Quantize to get discrete codes
@@ -92,14 +99,16 @@ def generate_new_images(model: nn.Module, test_loader, num_images: int = 5):
             # Randomly select different images for top and bottom codes
             top_idx = torch.randint(0, num_available, (1,)).item()
             bottom_idx = torch.randint(0, num_available, (1,)).item()
+            seg_idx = torch.randint(0, num_available, (1,)).item()
 
             # Use the quantized codes from different images
             z_top_sample = z_top_q[top_idx : top_idx + 1]
             z_bottom_sample = z_bottom_q[bottom_idx : bottom_idx + 1]
+            seg_sample = segs[seg_idx : seg_idx + 1]
 
             # Decode
             z_top_dec = model.decoder_top(z_top_sample)
-            z_combined = torch.cat([z_top_dec, z_bottom_sample], dim=1)
+            z_combined = torch.cat([z_top_dec, z_bottom_sample, seg_sample], dim=1)
             sample = model.decoder_bottom(z_combined)
             samples_list.append(sample)
 
@@ -123,10 +132,12 @@ def plot_samples(samples: torch.Tensor):
 
 
 def plot_reconstructions(model: nn.Module, test_loader):
-    imgs = next(iter(test_loader))
+    batch = next(iter(test_loader))
+    imgs, segs = batch
     imgs = imgs.to(device).float()
+    segs = segs.to(device).float()
     with torch.no_grad():
-        recons, _, _, _ = model.forward(imgs)
+        recons, _, _, _ = model.forward(imgs, segs)
 
     recons = torch.clamp(recons, -1, 1)
 
@@ -179,7 +190,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     test_loader = get_test_loader()
-    model = VQVAE2(in_channels=1).to(device)
+    model = VQVAE2(in_channels=1, seg_channels=6).to(device)
     load_model(model, pathlib.Path(__file__).parent.resolve() / args.filename)
 
     average_ssim = calculate_ssim(model, test_loader)
