@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch import nn
 import pathlib
+import argparse
 import time
 from dataset import load_data_helper
 from modules import VQVAE, VQVAE2
@@ -29,9 +30,13 @@ def create_vqvae2():
 
 
 def train_model(
-    model: nn.Module, train_loader: DataLoader, device: torch.device, epochs: int = 10
+    model: nn.Module,
+    train_loader: DataLoader,
+    device: torch.device,
+    epochs: int = 10,
+    learning_rate: float = 2e-4,
 ):
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}/{epochs}")
@@ -54,30 +59,45 @@ def save_model(model: nn.Module, path: pathlib.Path):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train VQ-VAE model.")
+    parser.add_argument(
+        "--batch_size", type=int, default=32, help="Training batch size"
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=50, help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--filename", type=str, default="vqvae_model.pth", help="Output model filename"
+    )
+    parser.add_argument(
+        "--data_dir", type=str, default="keras_slices_data", help="Dataset directory"
+    )
+    parser.add_argument(
+        "--learning_rate", type=float, default=2e-4, help="Learning rate for optimizer"
+    )
+    args = parser.parse_args()
+
     root_dir = pathlib.Path(__file__).parent.resolve()
     train_dataset, train_loader = load_data_helper(
-        root_dir / "keras_slices_data",
+        root_dir / args.data_dir,
         "train",
-        batch_size=32,
+        batch_size=args.batch_size,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("using device:", device)
 
-    file_name = (
-        input("Enter model filename (default: vqvae_model.pth): ") or "vqvae_model.pth"
-    )
     model = create_vqvae2().to(device)
 
     start = time.time()
     print(f"training started at {time.ctime(start)}")
 
     try:
-        train_model(model, train_loader, device, epochs=50)
-        save_model(model, root_dir / file_name)
+        train_model(model, train_loader, device, epochs=args.epochs)
+        save_model(model, root_dir / args.filename)
     except KeyboardInterrupt:
         print("KeyboardInterrupt detected, saving model...")
-        save_model(model, root_dir / file_name)
+        save_model(model, root_dir / args.filename)
     finally:
         # output training duration
         end = time.time()

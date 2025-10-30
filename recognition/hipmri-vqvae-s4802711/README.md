@@ -62,16 +62,20 @@ conda activate torch_env
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 nibabel -c pytorch -c nvidia -c conda-forge -y
 ```
 
+## Dataset
+
+This model is trained on the `keras_slices_data` dataset which you will need to provide. In the subfolder, the `keras_slices_train` and `keras_slices_test` are specifically needed for training and evaluating the model.
+
+This can be found on Rangpur if you are a UQ student, or from [CSIRO](https://data.csiro.au/collection/csiro:51392v2?redirected=true)
+
 ## Usage
 
 Running the training script:
 in the 'hipmri-vqvae-s4802711' directory, execute:
 
 ```bash
-python train.py
+python train.py --epochs 10 --batch_size 16 --learning_rate 0.0002
 ```
-
-Then follow the prompts to save the model.
 
 Run the prediction script to generate the reconstruction and synthetic images
 
@@ -79,11 +83,15 @@ Run the prediction script to generate the reconstruction and synthetic images
 python predict.py  --num_images 5 --save_images
 ```
 
-Enter the path to the saved model when prompted.
+This will generate 5 synthetic images and save them to the `output` folder.
+
+Additional command line arguments can be configured such as file name, and dataset path.
+
+Use `--help` to see all options of a file.
 
 ## Results
 
-I trained a model with the settings configured in `train.py` and 50 Epochs. With this I was able to achieve a SSIM score of 0.9419 on the test set.
+I trained a model with the settings configured in `train.py` and 50 Epochs, a batch size 0f 32 and a learning rate of 0.0002. Doing this I was able to achieve a SSIM score of 0.9419 on the test set.
 
 Here are 5 reconstructions of the original data:
 ![Reconstruction Results](./assets/reconstruction-results.png)
