@@ -263,6 +263,7 @@ class TransformerPrior(nn.Module):
         n_heads=8,
         seq_len=32 * 32,
         dropout=0.1,
+        seg_channels=0,
     ):
         """
         Transformer prior for VQ-VAE-2.
@@ -272,15 +273,35 @@ class TransformerPrior(nn.Module):
             n_layers: number of transformer layers
             n_heads: attention heads
             seq_len: length of flattened latent map (H*W)
+            seg_channels: number of segmentation channels for conditioning (0 = unconditional)
         """
         super().__init__()
         self.num_embeddings = num_embeddings
         self.seq_len = seq_len
+        self.seg_channels = seg_channels
 
         # code embedding
         self.token_emb = nn.Embedding(num_embeddings, hidden_dim)
         # positional embedding
         self.pos_emb = nn.Parameter(torch.randn(1, seq_len, hidden_dim))
+
+        # segmentation conditioning
+        if seg_channels > 0:
+            self.seg_encoder = nn.Sequential(
+                nn.Conv2d(
+                    seg_channels, hidden_dim // 4, kernel_size=4, stride=2, padding=1
+                ),
+                nn.ReLU(),
+                nn.Conv2d(
+                    hidden_dim // 4, hidden_dim // 2, kernel_size=4, stride=2, padding=1
+                ),
+                nn.ReLU(),
+                nn.Conv2d(
+                    hidden_dim // 2, hidden_dim, kernel_size=4, stride=2, padding=1
+                ),
+            )
+        else:
+            self.seg_encoder = None
 
         # transformer with optimizations
         encoder_layer = nn.TransformerEncoderLayer(
@@ -295,29 +316,85 @@ class TransformerPrior(nn.Module):
         # output projection to logits over discrete codes
         self.to_logits = nn.Linear(hidden_dim, num_embeddings)
 
-    def forward(self, x_seq):
+    def forward(self, x_seq, seg=None):
         """
         Args:
             x_seq: LongTensor of shape (B, H*W), discrete code indices from VQ-VAE
+            seg: Optional segmentation mask (B, C, H, W) for conditioning
         Returns:
             logits: (B, seq_len, num_embeddings)
         """
         # embed tokens + positions
         x = self.token_emb(x_seq) + self.pos_emb[:, : x_seq.size(1), :]
+
+        # add segmentation conditioning if available
+        if seg is not None and self.seg_encoder is not None:
+            seg_feat = self.seg_encoder(seg)  # (B, hidden_dim, 32, 32)
+            seg_feat = seg_feat.flatten(2).transpose(1, 2)  # (B, 32*32, hidden_dim)
+            x = x + seg_feat[:, : x_seq.size(1), :]
+
         out = self.transformer(x)
         logits = self.to_logits(out)
         return logits
 
     @torch.inference_mode()
-    def sample(self, device, batch_size=1, seq_len=None, temperature=1.0):
+    def sample(
+        self,
+        device,
+        batch_size=1,
+        seq_len=None,
+        temperature=1.0,
+        seg=None,
+        top_k=None,
+        top_p=None,
+    ):
         """
-        Sample discrete codes autoregressively
+        Sample discrete codes autoregressively with optional conditioning
+        Args:
+            device: torch device
+            batch_size: number of samples to generate
+            seq_len: sequence length to generate
+            temperature: sampling temperature (higher = more random)
+            seg: optional segmentation for conditioning (B, C, H, W)
+            top_k: if set, only sample from top k logits
+            top_p: if set, use nucleus sampling (sample from smallest set of tokens with cumulative prob >= top_p)
         """
         if seq_len is None:
             seq_len = self.seq_len
-        codes = torch.zeros(batch_size, seq_len, dtype=torch.long, device=device)
+
+        # Start with a special token (0) or random token
+        codes = torch.zeros(batch_size, 1, dtype=torch.long, device=device)
+
         for t in range(seq_len):
-            logits = self.forward(codes[:, :t+1])
-            probs = F.softmax(logits[:, -1, :] / temperature, dim=-1)
-            codes[:, t] = torch.multinomial(probs, 1).squeeze(-1)
-        return codes
+            logits = self.forward(codes, seg)
+            logits = logits[:, -1, :] / temperature
+
+            # Top-k filtering
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float("inf")
+
+            # Top-p (nucleus) filtering
+            if top_p is not None:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(
+                    F.softmax(sorted_logits, dim=-1), dim=-1
+                )
+
+                # Remove tokens with cumulative probability above the threshold
+                sorted_indices_to_remove = cumulative_probs > top_p
+                # Keep at least one token
+                sorted_indices_to_remove[:, 0] = False
+
+                # Scatter to original indexing
+                indices_to_remove = sorted_indices_to_remove.scatter(
+                    1, sorted_indices, sorted_indices_to_remove
+                )
+                logits[indices_to_remove] = -float("inf")
+
+            probs = F.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, 1)
+            codes = torch.cat([codes, next_token], dim=1)
+
+        # Remove the initial token and return
+        return codes[:, 1:]

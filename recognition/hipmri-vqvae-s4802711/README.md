@@ -29,7 +29,15 @@ The implementation of the model can be found in `modules.py`
 
 ![Diagram of VQVAE-2 generation](./assets/vqvae2-generation.png)
 
-This diagram shows how the class label is fed into the two encoders during generation to construct a new image using the top and bottom decoders with a transformer.
+This diagram shows how the class label is fed into the two encoders during generation to construct a new image using the top and bottom decoders with a transformer prior.
+
+The transformer prior is trained autoregressively to model the distribution of top-level latent codes. During generation:
+1. A segmentation mask is provided as input conditioning
+2. The transformer prior samples top-level discrete codes autoregressively 
+3. The bottom-level codes are sampled randomly (or from a separate prior)
+4. Both code levels are decoded through the VQ-VAE-2 decoder to generate the final image
+
+The prior uses techniques like top-k filtering and nucleus sampling (top-p) to improve generation quality and diversity.
 
 [Learn more about VQ-VAE-2 here](https://arxiv.org/pdf/1906.00446)
 
@@ -70,26 +78,41 @@ This can be found on Rangpur if you are a UQ student, or from [CSIRO](https://da
 
 ## Usage
 
+### Training the VQ-VAE-2
+
 Running the training script:
 in the 'hipmri-vqvae-s4802711' directory, execute:
 
 ```bash
-python train.py --epochs 10 --batch_size 16 --learning_rate 0.0002
+python train.py --epochs 50 --batch_size 32 --learning_rate 0.0002 --filename vqvae_model.pth
 ```
 
-Then train the prior model to sample from the latent space:
+### Training the Transformer Prior
+
+After training the VQ-VAE-2, train the autoregressive transformer prior to learn the distribution of latent codes:
 
 ```bash
-python train_prior.py --vqvae_path  model.pth --epochs 10 --batch_size 16
+python train_prior.py --vqvae_path vqvae_model.pth --save_path transformer_prior.pth --epochs 20 --batch_size 16 --lr 3e-4
 ```
 
-Finally, use the prediction script to generate the reconstruction and synthetic images
+Optional flags:
+- `--amp`: Enable automatic mixed precision for faster training
+- `--compile`: Use torch.compile for additional speedup (requires PyTorch >= 2.0)
+
+### Generation and Evaluation
+
+Finally, use the prediction script to generate reconstructions and synthetic images:
 
 ```bash
-python predict.py --vqvae_path model.pth --prior_path prior.pth --num_images 5 --save_images
+python predict.py --vqvae_path vqvae_model.pth --prior_path transformer_prior.pth --num_images 5 --temperature 1.0 --top_k 50 --top_p 0.95
 ```
 
-This will generate 5 synthetic images and save them to the `output` folder.
+Generation parameters:
+- `--temperature`: Controls randomness (higher = more diverse, lower = more conservative)
+- `--top_k`: Only sample from top-k most likely tokens
+- `--top_p`: Nucleus sampling threshold (sample from smallest set with cumulative prob >= top_p)
+
+This will generate 5 synthetic images conditioned on segmentation masks and display both reconstructions and generated samples.
 
 Additional command line arguments can be configured such as file name, and dataset path.
 

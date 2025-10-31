@@ -35,8 +35,8 @@ def load_model(model: nn.Module, path: pathlib.Path):
     model.eval()
 
 
-def load_prior(prior_path: pathlib.Path):
-    prior = TransformerPrior(num_embeddings=512, seq_len=32 * 32).to(device)
+def load_prior(prior_path: pathlib.Path, seg_channels: int = 6):
+    prior = TransformerPrior(num_embeddings=512, seq_len=32 * 32, seg_channels=seg_channels).to(device)
     prior.load_state_dict(torch.load(prior_path, map_location=device))
     prior.eval()
     return prior
@@ -106,14 +106,21 @@ def plot_reconstructions(model: nn.Module, test_loader):
     plt.show(block=False)
 
 
-def generate_from_prior(vqvae: VQVAE2, prior: TransformerPrior, seg, temperature=1.0):
+def generate_from_prior(vqvae: VQVAE2, prior: TransformerPrior, seg, temperature=1.0, top_k=50, top_p=0.95):
     """Generate images using the transformer prior and VQ-VAE-2 decoder."""
     with torch.no_grad():
         batch_size = seg.shape[0]
 
-        # Sample top-level codes from prior
-        top_codes = prior.sample(device, seq_len=32 * 32, temperature=temperature)
-        top_codes = top_codes.repeat(batch_size, 1)
+        # Sample top-level codes from prior with segmentation conditioning
+        top_codes = prior.sample(
+            device, 
+            batch_size=batch_size, 
+            seq_len=32 * 32, 
+            temperature=temperature,
+            seg=seg,
+            top_k=top_k,
+            top_p=top_p
+        )
 
         # Reshape to spatial dimensions
         top_codes = top_codes.view(batch_size, 32, 32)
@@ -122,14 +129,14 @@ def generate_from_prior(vqvae: VQVAE2, prior: TransformerPrior, seg, temperature
         z_top_q = F.embedding(top_codes, vqvae.vp_top.embeddings.weight)
         z_top_q = z_top_q.permute(0, 3, 1, 2).contiguous()
 
-        # Sample random bottom codes
+        # Sample random bottom codes (could also train a separate prior for these)
         bottom_codes = torch.randint(
             0, vqvae.vp_bottom.num_embeddings, (batch_size, 64, 64), device=device
         )
         z_bottom_q = F.embedding(bottom_codes, vqvae.vp_bottom.embeddings.weight)
         z_bottom_q = z_bottom_q.permute(0, 3, 1, 2).contiguous()
 
-        # Decode
+        # Decode through VQ-VAE-2 decoder
         z_top_dec = vqvae.decoder_top(z_top_q)
         seg_upsampled = F.interpolate(seg, size=z_bottom_q.shape[2:], mode="nearest")
         z_combined = torch.cat([z_top_dec, z_bottom_q, seg_upsampled], dim=1)
@@ -139,7 +146,7 @@ def generate_from_prior(vqvae: VQVAE2, prior: TransformerPrior, seg, temperature
 
 
 def plot_prior_generations(
-    vqvae: VQVAE2, prior: TransformerPrior, test_loader, num_images=5, temperature=1.0
+    vqvae: VQVAE2, prior: TransformerPrior, test_loader, num_images=5, temperature=1.0, top_k=50, top_p=0.95
 ):
     """Generate and plot images using the transformer prior."""
     batch = next(iter(test_loader))
@@ -148,7 +155,7 @@ def plot_prior_generations(
 
     with torch.no_grad():
         generated = generate_from_prior(
-            vqvae, prior, segs[:num_images], temperature=temperature
+            vqvae, prior, segs[:num_images], temperature=temperature, top_k=top_k, top_p=top_p
         )
 
     generated = torch.clamp(generated, -1, 1)
@@ -210,6 +217,20 @@ if __name__ == "__main__":
         default=1.0,
         help="Sampling temperature for prior generation (default: 1.0)",
     )
+    
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=50,
+        help="Top-k filtering for sampling (default: 50)",
+    )
+    
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.95,
+        help="Nucleus sampling threshold (default: 0.95)",
+    )
 
     args = parser.parse_args()
 
@@ -224,10 +245,10 @@ if __name__ == "__main__":
     # Generate from prior if path provided
     if args.prior_path:
         root_dir = pathlib.Path(__file__).parent.resolve()
-        prior = load_prior(root_dir / args.prior_path)
+        prior = load_prior(root_dir / args.prior_path, seg_channels=6)
         print(
-            f"Generating {args.num_images} images from prior with temperature={args.temperature}"
+            f"Generating {args.num_images} images from prior with temperature={args.temperature}, top_k={args.top_k}, top_p={args.top_p}"
         )
         plot_prior_generations(
-            model, prior, test_loader, args.num_images, args.temperature
+            model, prior, test_loader, args.num_images, args.temperature, args.top_k, args.top_p
         )
