@@ -4,7 +4,10 @@ import torch
 import torch.nn.functional as F
 from dataset import load_data_helper
 from modules import VQVAE2, TransformerPrior
-from torch.amp import autocast, GradScaler
+
+# from torch.amp import autocast, GradScaler
+from torch.amp.grad_scaler import GradScaler
+from torch.amp.autocast_mode import autocast
 
 
 @torch.no_grad()
