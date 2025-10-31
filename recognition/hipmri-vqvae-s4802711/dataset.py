@@ -116,9 +116,6 @@ class NiftiSegmentationDataset(Dataset):
     def _preprocess(self, inImage: np.ndarray, is_mask: bool = False) -> np.ndarray:
         """Applies common preprocessing steps."""
 
-        # if len(inImage.shape) == 3:
-        #     inImage = inImage[:, :, 0]
-
         if len(inImage.shape) == 3:
             inImage = inImage[:, :, inImage.shape[2] // 2]
 
@@ -164,6 +161,9 @@ class NiftiSegmentationDataset(Dataset):
 def load_data_helper(
     base_dir: pathlib.Path, subset: str, num_classes: int, batch_size=8
 ):
+    """
+    helper method to load dataset and dataloader
+    """
     img_dir = base_dir / f"keras_slices_{subset}"
     seg_dir = base_dir / f"keras_slices_seg_{subset}"
 

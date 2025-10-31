@@ -92,6 +92,7 @@ class Decoder(nn.Module):
         return self.net(z)
 
 
+# Old VQ-VAE module
 class VQVAE(nn.Module):
     def __init__(
         self,
@@ -152,6 +153,37 @@ class DecoderTop(nn.Module):
 
 
 class VQVAE2(nn.Module):
+    """
+    Hierarchical Vector Quantized Variational Autoencoder (VQ-VAE-2).
+
+    Implements a two-level hierarchical VQ-VAE with segmentation conditioning for
+    high-quality image generation. The model uses separate quantizers for top-level
+    (global structure) and bottom-level (local details) latent codes.
+
+    Architecture:
+        - Bottom encoder: Encodes image + segmentation to bottom latent (256x256 -> 64x64)
+        - Top encoder: Further encodes bottom latent to top latent (64x64 -> 32x32)
+        - Top quantizer: Discretizes top latent codes (global structure)
+        - Bottom quantizer: Discretizes bottom latent codes (local details)
+        - Top decoder: Decodes top codes back to bottom latent space
+        - Bottom decoder: Combines top + bottom latents + segmentation to reconstruct image
+
+    Args:
+        in_channels: Number of input image channels (default: 1 for grayscale)
+        seg_channels: Number of segmentation mask channels (default: 4)
+        hidden_channels: Number of hidden channels in encoder/decoder (default: 128)
+        bottom_dim: Dimension of bottom-level latent codes (default: 64)
+        top_dim: Dimension of top-level latent codes (default: 64)
+        num_embeddings: Size of discrete codebook for both quantizers (default: 512)
+        commitment_cost: Weight for commitment loss in vector quantization (default: 0.25)
+
+    Example:
+        >>> model = VQVAE2(in_channels=1, seg_channels=6)
+        >>> img = torch.randn(4, 1, 256, 256)
+        >>> seg = torch.randn(4, 6, 256, 256)
+        >>> recon, total_loss, recon_loss, vq_loss = model(img, seg)
+    """
+
     def __init__(
         self,
         in_channels: int = 1,
@@ -196,6 +228,20 @@ class VQVAE2(nn.Module):
         self.vp_bottom = VectorQuantizer(num_embeddings, bottom_dim, commitment_cost)
 
     def forward(self, x, seg):
+        """
+        Forward pass through the VQ-VAE-2 model.
+
+        Args:
+            x: Input images of shape (B, in_channels, H, W)
+            seg: Segmentation masks of shape (B, seg_channels, H, W)
+
+        Returns:
+            Tuple of (x_recon, total_loss, recon_loss, vq_loss):
+                - x_recon: Reconstructed images (B, in_channels, H, W)
+                - total_loss: Combined reconstruction and VQ loss
+                - recon_loss: MSE reconstruction loss
+                - vq_loss: Combined top and bottom VQ losses
+        """
         # Concatenate image and segmentation for encoding
         x_cond = torch.cat([x, seg], dim=1)
 
@@ -224,36 +270,8 @@ class VQVAE2(nn.Module):
 
         return x_recon, total_loss, recon_loss, vq_loss
 
-    def generate(self, seg):
-        """Generate image from segmentation only."""
-        # Use random latent codes or zeros for unconditional generation
-        batch_size = seg.shape[0]
-        device = seg.device
 
-        # Sample random codes from embeddings
-        top_codes = torch.randint(
-            0, self.vp_top.num_embeddings, (batch_size, 32, 32), device=device
-        )
-        bottom_codes = torch.randint(
-            0, self.vp_bottom.num_embeddings, (batch_size, 64, 64), device=device
-        )
-
-        # Get quantized vectors
-        z_top_q = F.embedding(top_codes, self.vp_top.embeddings.weight)
-        z_top_q = z_top_q.permute(0, 3, 1, 2)
-
-        z_bottom_q = F.embedding(bottom_codes, self.vp_bottom.embeddings.weight)
-        z_bottom_q = z_bottom_q.permute(0, 3, 1, 2)
-
-        # Decode
-        z_top_dec = self.decoder_top(z_top_q)
-        seg_upsampled = F.interpolate(seg, size=z_bottom_q.shape[2:], mode="nearest")
-        z_combined = torch.cat([z_top_dec, z_bottom_q, seg_upsampled], dim=1)
-        x_gen = self.decoder_bottom(z_combined)
-
-        return x_gen
-
-
+# Transformer Prior for VQ-VAE-2
 class TransformerPrior(nn.Module):
     def __init__(
         self,
